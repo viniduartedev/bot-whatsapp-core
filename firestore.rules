@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Coleção de agendamentos (leitura pública temporária até o fluxo de auth estar pronto)
+    match /appointmentRequests/{requestId} {
+      allow read: if true;
+    }
+  }
+}

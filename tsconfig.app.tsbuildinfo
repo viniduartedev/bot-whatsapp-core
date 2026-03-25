@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/RequestList.tsx","./src/firebase/config.ts","./src/hooks/useRequests.ts","./src/pages/Requests.tsx","./src/services/firestore.ts","./src/types/appointment.ts"],"version":"5.9.3"}
