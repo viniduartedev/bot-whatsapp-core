@@ -1,11 +1,12 @@
-export interface AppointmentRequest {
+import type { AppointmentStatus } from '../core/constants/domain';
+
+export interface Appointment {
   id: string;
-  phone: string;
-  customerName: string;
-  requestedDate: string;
-  requestedTime: string;
-  status: string;
-  channel: string;
-  source: string;
-  createdAt: any; // V1: manter simples; V2+ podemos tipar com Timestamp do Firestore
+  projectId: string;
+  requestId: string;
+  contactId: string;
+  date: string;
+  time: string;
+  status: AppointmentStatus;
+  createdAt: unknown;
 }

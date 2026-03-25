@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
 import { getAppointmentRequests } from '../services/firestore';
-import type { AppointmentRequest } from '../types/appointment';
+import type { AppointmentRequest } from '../types/appointmentRequest';
+import { useCollectionQuery } from './useCollectionQuery';
 
 interface UseRequestsResult {
   requests: AppointmentRequest[];
@@ -10,27 +10,11 @@ interface UseRequestsResult {
 }
 
 export function useRequests(): UseRequestsResult {
-  const [requests, setRequests] = useState<AppointmentRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, refetch } = useCollectionQuery<AppointmentRequest>(
+    getAppointmentRequests,
+    'Erro ao carregar solicitações legadas.'
+  );
 
-  const refetch = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const items = await getAppointmentRequests();
-      setRequests(items);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar solicitações.';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
-
+  const requests = data;
   return { requests, loading, error, refetch };
 }

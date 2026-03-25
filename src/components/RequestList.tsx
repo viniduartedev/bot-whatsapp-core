@@ -1,4 +1,4 @@
-import type { AppointmentRequest } from '../types/appointment';
+import type { AppointmentRequest } from '../types/appointmentRequest';
 
 interface RequestListProps {
   requests: AppointmentRequest[];

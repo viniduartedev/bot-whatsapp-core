@@ -1,7 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Coleção de agendamentos (leitura pública temporária até o fluxo de auth estar pronto)
+    // Etapa atual do Projeto 2:
+    // leitura pública temporária enquanto estruturamos o core sem autenticação.
+    // Em fases futuras estas regras devem convergir para auth + autorização por perfil.
+    match /projects/{projectId} {
+      allow read: if true;
+    }
+
+    match /contacts/{contactId} {
+      allow read: if true;
+    }
+
+    // `serviceRequests` passa a ser a porta de entrada principal do core.
+    match /serviceRequests/{serviceRequestId} {
+      allow read, update: if true;
+    }
+
+    match /appointments/{appointmentId} {
+      // `appointments` representa a conversão real da solicitação em agendamento.
+      // Neste estágio liberamos criação pelo painel para validar o fluxo.
+      allow read, create: if true;
+    }
+
+    // Coleção legada mantida durante a migração gradual.
     match /appointmentRequests/{requestId} {
       allow read: if true;
     }

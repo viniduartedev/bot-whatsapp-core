@@ -4,16 +4,20 @@ import { useRequests } from '../hooks/useRequests';
 export function Requests() {
   const { requests, loading, error, refetch } = useRequests();
 
-  // Roadmap de evolução incremental:
-  // V2: atualizar status da solicitação na própria lista
-  // V3: transformar solicitação em agendamento efetivo
-  // V4: autenticação e autorização por perfil
-  // V5: multi-tenant para suportar múltiplos clientes (SaaS)
+  // `appointmentRequests` segue disponível apenas para manter a migração segura.
+  // A nova porta de entrada do core passa a ser `serviceRequests`.
 
   return (
-    <main className="container">
-      <header className="header">
-        <h1>Solicitações de Agendamento</h1>
+    <section className="page-section">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Legado temporário</p>
+          <h1>Solicitações antigas</h1>
+          <p>
+            Esta tela preserva a leitura da coleção <code>appointmentRequests</code> enquanto
+            o core novo é estruturado em paralelo.
+          </p>
+        </div>
         <button type="button" onClick={() => void refetch()}>
           Atualizar
         </button>
@@ -30,6 +34,6 @@ export function Requests() {
       )}
 
       {!loading && !error && requests.length > 0 && <RequestList requests={requests} />}
-    </main>
+    </section>
   );
 }

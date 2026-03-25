@@ -7,17 +7,20 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "seed:appointments": "node --env-file=.env scripts/seed-appointment-requests.mjs"
+    "seed:appointments": "node --env-file=.env scripts/seed-appointment-requests.mjs",
+    "seed:core": "node --env-file=.env --import tsx scripts/seed-core.ts"
   },
   "dependencies": {
     "firebase": "^11.10.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.13.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
+    "tsx": "^4.21.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
   }
