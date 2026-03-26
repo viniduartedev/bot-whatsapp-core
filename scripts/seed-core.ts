@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { FIRESTORE_COLLECTIONS } from '../src/core/constants/firestoreCollections';
 import { buildAppointmentIdFromRequestId } from '../src/core/constants/identifiers';
 
-type FirestoreSeedValue = string | number | boolean | null;
+type FirestoreSeedValue = string | number | boolean | null | FirestoreSeedPayload;
 type FirestoreSeedPayload = Record<string, FirestoreSeedValue>;
 
 interface SeedDocument {
@@ -21,6 +21,7 @@ if (!projectId) {
 
 const now = new Date().toISOString();
 const demoProjectId = 'core-project-clinica-demo';
+const secondaryProjectId = 'core-project-estudio-demo';
 const demoContacts = [
   {
     id: 'core-contact-ana-lima',
@@ -89,6 +90,83 @@ const demoServiceRequests = [
   }
 ] as const;
 
+const demoInboundEvents = [
+  {
+    id: 'core-inbound-event-1',
+    projectId: demoProjectId,
+    eventType: 'message.received',
+    status: 'processed',
+    phone: demoContacts[0].phone,
+    createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    metadata: {
+      provider: 'twilio-sandbox',
+      direction: 'inbound',
+      channel: 'whatsapp'
+    }
+  },
+  {
+    id: 'core-inbound-event-2',
+    projectId: demoProjectId,
+    eventType: 'message.received',
+    status: 'processed',
+    phone: demoContacts[1].phone,
+    createdAt: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+    metadata: {
+      provider: 'twilio-sandbox',
+      direction: 'inbound',
+      channel: 'whatsapp'
+    }
+  },
+  {
+    id: 'core-inbound-event-3',
+    projectId: demoProjectId,
+    eventType: 'request.created',
+    status: 'processed',
+    phone: demoContacts[1].phone,
+    createdAt: new Date(Date.now() - 50 * 60 * 1000).toISOString(),
+    metadata: {
+      requestId: demoServiceRequests[1].id,
+      source: 'painel_seed'
+    }
+  },
+  {
+    id: 'core-inbound-event-4',
+    projectId: demoProjectId,
+    eventType: 'webhook.delivery',
+    status: 'error',
+    phone: demoContacts[2].phone,
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    metadata: {
+      provider: 'twilio-sandbox',
+      code: 'DELIVERY_TIMEOUT',
+      retryable: true
+    }
+  }
+] as const;
+
+const demoProjectConnections = [
+  {
+    id: 'core-project-connection-scheduling-dev',
+    projectId: demoProjectId,
+    connectionType: 'scheduling',
+    provider: 'firebase',
+    status: 'active',
+    targetProjectId: 'agendamentos-ai-dev',
+    environment: 'dev',
+    createdAt: now
+  },
+  {
+    id: 'core-project-connection-scheduling-prod',
+    projectId: demoProjectId,
+    connectionType: 'scheduling',
+    provider: 'firebase',
+    status: 'inactive',
+    targetProjectId: 'agendamentos-ai-prod',
+    environment: 'prod',
+    createdAt: now
+  }
+] as const;
+
 const seedDocuments: SeedDocument[] = [
   {
     collection: FIRESTORE_COLLECTIONS.projects,
@@ -97,6 +175,16 @@ const seedDocuments: SeedDocument[] = [
       name: 'Clinica Demo',
       slug: 'clinica-demo',
       status: 'active',
+      createdAt: now
+    }
+  },
+  {
+    collection: FIRESTORE_COLLECTIONS.projects,
+    id: secondaryProjectId,
+    data: {
+      name: 'Estudio Demo',
+      slug: 'estudio-demo',
+      status: 'inactive',
       createdAt: now
     }
   },
@@ -109,6 +197,16 @@ const seedDocuments: SeedDocument[] = [
     collection: FIRESTORE_COLLECTIONS.serviceRequests,
     id: request.id,
     data: { ...request }
+  })),
+  ...demoInboundEvents.map((event) => ({
+    collection: FIRESTORE_COLLECTIONS.inboundEvents,
+    id: event.id,
+    data: { ...event }
+  })),
+  ...demoProjectConnections.map((connection) => ({
+    collection: FIRESTORE_COLLECTIONS.projectConnections,
+    id: connection.id,
+    data: { ...connection }
   })),
   {
     collection: FIRESTORE_COLLECTIONS.appointments,
@@ -150,6 +248,14 @@ function getAccessToken() {
 }
 
 function toFirestoreField(value: FirestoreSeedValue) {
+  if (typeof value === 'object' && value !== null) {
+    return {
+      mapValue: {
+        fields: toFirestoreFields(value)
+      }
+    };
+  }
+
   if (value === null) {
     return { nullValue: null };
   }
@@ -245,6 +351,8 @@ async function main() {
     `Seed do core concluido: ${seedDocuments.length} documentos atualizados em ${[
       FIRESTORE_COLLECTIONS.projects,
       FIRESTORE_COLLECTIONS.contacts,
+      FIRESTORE_COLLECTIONS.inboundEvents,
+      FIRESTORE_COLLECTIONS.projectConnections,
       FIRESTORE_COLLECTIONS.serviceRequests,
       FIRESTORE_COLLECTIONS.appointments
     ].join(', ')}.`

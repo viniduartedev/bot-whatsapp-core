@@ -1,24 +1,27 @@
-import { MetricCard } from '../components/MetricCard';
+import { FunnelCard } from '../components/dashboard/FunnelCard';
+import { HealthStatusCard } from '../components/dashboard/HealthStatusCard';
+import { MetricCard } from '../components/dashboard/MetricCard';
+import { RecentErrorsPanel } from '../components/dashboard/RecentErrorsPanel';
+import { RecentEventsTable } from '../components/dashboard/RecentEventsTable';
+import { PageHeader } from '../components/layout/PageHeader';
 import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
 
 export function Dashboard() {
-  const { metrics, loading, error, refetch } = useDashboardMetrics();
+  const { metrics, funnel, health, recentEvents, recentErrors, loading, error, refetch } =
+    useDashboardMetrics();
 
   return (
     <section className="page-section">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">Dashboard inicial</p>
-          <h1>Visão geral do core</h1>
-          <p>
-            Esta etapa prepara a base do sistema para crescer com segurança em torno do domínio
-            principal, sem antecipar autenticação, multi-tenant completo ou backend customizado.
-          </p>
-        </div>
-        <button type="button" onClick={() => void refetch()}>
-          Atualizar
-        </button>
-      </header>
+      <PageHeader
+        eyebrow="Ops Center"
+        title="Central operacional do core"
+        description="Painel DevOps / Ops Center preparado para observabilidade, múltiplos bots e múltiplos projetos nas próximas fases."
+        actions={
+          <button type="button" onClick={() => void refetch()}>
+            Atualizar dashboard
+          </button>
+        }
+      />
 
       {loading && <p className="state">Carregando indicadores...</p>}
 
@@ -26,47 +29,69 @@ export function Dashboard() {
 
       {!loading && !error && (
         <>
-          <div className="metrics-grid">
+          <div className="metric-grid">
             <MetricCard
-              label="Projetos"
+              label="Projects"
               value={metrics.projects}
-              description="Base inicial de unidades ou clientes que agrupam o domínio."
+              description="Projetos cadastrados no orquestrador."
+              tone="neutral"
             />
             <MetricCard
-              label="Contatos"
-              value={metrics.contacts}
-              description="Pessoas atendidas pelos fluxos atuais e futuros do sistema."
+              label="Inbound Events"
+              value={metrics.inboundEvents}
+              description="Sinais recebidos pelo ecossistema do bot."
+              tone="info"
             />
             <MetricCard
-              label="Solicitações"
+              label="Inbound hoje"
+              value={metrics.inboundEventsToday}
+              description="Volume observado no dia corrente."
+              tone="neutral"
+            />
+            <MetricCard
+              label="Service Requests"
               value={metrics.serviceRequests}
-              description="Entrada operacional principal do core em evolução."
+              description="Fila operacional principal do core."
+              tone="warning"
             />
             <MetricCard
-              label="Agendamentos"
+              label="Appointments"
               value={metrics.appointments}
-              description="Conversões já materializadas a partir das solicitações."
+              description="Conversões confirmadas em agenda."
+              tone="success"
+            />
+            <MetricCard
+              label="Erros"
+              value={metrics.errors}
+              description="Eventos em falha com prioridade operacional."
+              tone="danger"
+            />
+            <MetricCard
+              label="Conexões ativas"
+              value={metrics.activeConnections}
+              description="Integrações externas habilitadas por projeto."
+              tone="warning"
             />
           </div>
 
-          <div className="insight-grid">
-            <article className="content-card">
-              <h3>Direção desta fase</h3>
-              <ul className="content-list">
-                <li>Estruturar o domínio central do Projeto 2 sem finalizar o produto.</li>
-                <li>Deixar o painel preparado para novas telas, métricas e serviços.</li>
-                <li>Manter compatibilidade com o que já existe durante a transição.</li>
-              </ul>
-            </article>
+          <div className="dashboard-grid dashboard-grid--balanced">
+            <HealthStatusCard
+              botStatus={health.botStatus}
+              coreStatus={health.coreStatus}
+              lastEventAt={health.lastEventAt}
+              lastEventType={health.lastEventType}
+              message={health.message}
+            />
+            <FunnelCard
+              inboundEvents={funnel.inboundEvents}
+              serviceRequests={funnel.serviceRequests}
+              appointments={funnel.appointments}
+            />
+          </div>
 
-            <article className="content-card">
-              <h3>Próximos encaixes naturais</h3>
-              <ul className="content-list">
-                <li>Integrar o bot ao fluxo de entrada baseado em <code>serviceRequests</code>.</li>
-                <li>Migrar gradualmente a coleção legada <code>appointmentRequests</code>.</li>
-                <li>Adicionar novas telas sem reabrir a organização central do domínio.</li>
-              </ul>
-            </article>
+          <div className="dashboard-grid">
+            <RecentEventsTable events={recentEvents} />
+            <RecentErrorsPanel events={recentErrors} />
           </div>
         </>
       )}

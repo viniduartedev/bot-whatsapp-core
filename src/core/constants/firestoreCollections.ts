@@ -6,6 +6,8 @@
 export const FIRESTORE_COLLECTIONS = {
   projects: 'projects',
   contacts: 'contacts',
+  inboundEvents: 'inboundEvents',
+  projectConnections: 'projectConnections',
   serviceRequests: 'serviceRequests',
   appointments: 'appointments',
   legacyAppointmentRequests: 'appointmentRequests'

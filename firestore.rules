@@ -12,6 +12,14 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    match /inboundEvents/{eventId} {
+      allow read: if true;
+    }
+
+    match /projectConnections/{connectionId} {
+      allow read, create, update: if true;
+    }
+
     // `serviceRequests` passa a ser a porta de entrada principal do core.
     match /serviceRequests/{serviceRequestId} {
       allow read, update: if true;

@@ -1,6 +1,16 @@
 import { useState } from 'react';
-import { DataTable, type DataTableColumn } from '../components/DataTable';
-import { canConfirmServiceRequestStatus } from '../core/constants/domain';
+import { DataTable, type DataTableColumn } from '../components/common/DataTable';
+import { EmptyState } from '../components/common/EmptyState';
+import { SectionCard } from '../components/common/SectionCard';
+import {
+  StatusBadge,
+  getServiceRequestTone
+} from '../components/common/StatusBadge';
+import { PageHeader } from '../components/layout/PageHeader';
+import {
+  SERVICE_REQUEST_STATUSES,
+  canConfirmServiceRequestStatus
+} from '../core/constants/domain';
 import { formatUnknownDateTime } from '../core/mappers/display';
 import type { ServiceRequest } from '../core/entities';
 import { confirmServiceRequest } from '../core/use-cases/confirmServiceRequest';
@@ -12,6 +22,8 @@ interface ActionFeedback {
   message: string;
 }
 
+type ServiceRequestFilter = 'all' | ServiceRequest['status'];
+
 export function ServiceRequestsPage() {
   const { data: requests, loading, error, refetch } = useCollectionQuery(
     getServiceRequests,
@@ -19,6 +31,12 @@ export function ServiceRequestsPage() {
   );
   const [submittingRequestId, setSubmittingRequestId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<ActionFeedback | null>(null);
+  const [activeFilter, setActiveFilter] = useState<ServiceRequestFilter>('all');
+
+  const filteredRequests =
+    activeFilter === 'all'
+      ? requests
+      : requests.filter((request) => request.status === activeFilter);
 
   async function handleConfirm(request: ServiceRequest) {
     setSubmittingRequestId(request.id);
@@ -53,7 +71,9 @@ export function ServiceRequestsPage() {
     {
       id: 'status',
       header: 'Status',
-      cell: (request) => request.status
+      cell: (request) => (
+        <StatusBadge label={request.status} tone={getServiceRequestTone(request.status)} />
+      )
     },
     {
       id: 'requestedDate',
@@ -118,19 +138,16 @@ export function ServiceRequestsPage() {
 
   return (
     <section className="page-section">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">Entrada principal</p>
-          <h1>Solicitações de serviço</h1>
-          <p>
-            <code>serviceRequests</code> inicia a modelagem da porta de entrada principal do core
-            para futuras integrações com bot, painel e fluxo de agendamento.
-          </p>
-        </div>
-        <button type="button" onClick={() => void refetch()}>
-          Atualizar
-        </button>
-      </header>
+      <PageHeader
+        eyebrow="Operational queue"
+        title="Service Requests"
+        description="Fila operacional principal do core, já com ação real de confirmação e pronta para crescer com filtros, bots e múltiplos projetos."
+        actions={
+          <button type="button" onClick={() => void refetch()}>
+            Atualizar fila
+          </button>
+        }
+      />
 
       {feedback && (
         <p className={feedback.tone === 'success' ? 'state success' : 'state error'}>
@@ -142,17 +159,46 @@ export function ServiceRequestsPage() {
 
       {!loading && error && <p className="state error">Erro ao carregar dados: {error}</p>}
 
-      {!loading && !error && requests.length === 0 && (
-        <p className="state">Nenhuma solicitação encontrada.</p>
-      )}
-
-      {!loading && !error && requests.length > 0 && (
-        <DataTable
-          items={requests}
-          columns={columns}
-          getRowKey={(request) => request.id}
-          caption="Lista de solicitações de serviço"
-        />
+      {!loading && !error && (
+        <SectionCard
+          title="Requests queue"
+          description="A entidade de entrada principal do core com foco em triagem, confirmação e observabilidade."
+          aside={
+            <div className="filter-bar" aria-label="Filtros por status">
+              <button
+                type="button"
+                className={activeFilter === 'all' ? 'filter-chip active' : 'filter-chip'}
+                onClick={() => setActiveFilter('all')}
+              >
+                Todos
+              </button>
+              {SERVICE_REQUEST_STATUSES.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  className={activeFilter === status ? 'filter-chip active' : 'filter-chip'}
+                  onClick={() => setActiveFilter(status)}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          {filteredRequests.length === 0 ? (
+            <EmptyState
+              title="Nenhuma solicitação nesse recorte"
+              description="Ajuste o filtro ou aguarde novas entradas do fluxo operacional."
+            />
+          ) : (
+            <DataTable
+              items={filteredRequests}
+              columns={columns}
+              getRowKey={(request) => request.id}
+              caption="Lista de solicitações de serviço"
+            />
+          )}
+        </SectionCard>
       )}
     </section>
   );
