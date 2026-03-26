@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { InboundEvent } from '../core/entities';
+import type { InboundEvent, IntegrationEvent, IntegrationLog } from '../core/entities';
 import {
   getDashboardSnapshot,
   type DashboardHealthStatus,
@@ -11,46 +11,52 @@ interface UseDashboardMetricsResult {
   funnel: {
     inboundEvents: number;
     serviceRequests: number;
-    appointments: number;
+    integrationEvents: number;
+    integratedRequests: number;
   };
   health: DashboardHealthStatus;
   recentEvents: InboundEvent[];
-  recentErrors: InboundEvent[];
+  recentIntegrationEvents: IntegrationEvent[];
+  recentIntegrationErrors: IntegrationLog[];
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
 }
 
 const INITIAL_METRICS: DashboardMetrics = {
-  projects: 0,
   inboundEvents: 0,
-  inboundEventsToday: 0,
   serviceRequests: 0,
-  appointments: 0,
-  errors: 0,
+  pendingRequests: 0,
+  integratedRequests: 0,
+  integrationEvents: 0,
+  integrationErrors: 0,
   activeConnections: 0
 };
 
 const INITIAL_FUNNEL = {
   inboundEvents: 0,
   serviceRequests: 0,
-  appointments: 0
+  integrationEvents: 0,
+  integratedRequests: 0
 };
 
 const INITIAL_HEALTH: DashboardHealthStatus = {
   botStatus: 'attention',
+  integrationStatus: 'attention',
   coreStatus: 'attention',
-  lastEventAt: null,
-  lastEventType: null,
-  message: 'Coletando sinais operacionais do core.'
+  lastInboundEventAt: null,
+  lastInboundEventType: null,
+  lastIntegrationAt: null,
+  message: 'Coletando sinais operacionais do projeto.'
 };
 
-export function useDashboardMetrics(): UseDashboardMetricsResult {
+export function useDashboardMetrics(projectId?: string): UseDashboardMetricsResult {
   const [metrics, setMetrics] = useState<DashboardMetrics>(INITIAL_METRICS);
   const [funnel, setFunnel] = useState(INITIAL_FUNNEL);
   const [health, setHealth] = useState<DashboardHealthStatus>(INITIAL_HEALTH);
   const [recentEvents, setRecentEvents] = useState<InboundEvent[]>([]);
-  const [recentErrors, setRecentErrors] = useState<InboundEvent[]>([]);
+  const [recentIntegrationEvents, setRecentIntegrationEvents] = useState<IntegrationEvent[]>([]);
+  const [recentIntegrationErrors, setRecentIntegrationErrors] = useState<IntegrationLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,24 +64,35 @@ export function useDashboardMetrics(): UseDashboardMetricsResult {
     try {
       setLoading(true);
       setError(null);
-      const snapshot = await getDashboardSnapshot();
+      const snapshot = await getDashboardSnapshot(projectId);
 
       setMetrics(snapshot.metrics);
       setFunnel(snapshot.funnel);
       setHealth(snapshot.health);
       setRecentEvents(snapshot.recentEvents);
-      setRecentErrors(snapshot.recentErrors);
+      setRecentIntegrationEvents(snapshot.recentIntegrationEvents);
+      setRecentIntegrationErrors(snapshot.recentIntegrationErrors);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar indicadores.';
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     void refetch();
   }, [refetch]);
 
-  return { metrics, funnel, health, recentEvents, recentErrors, loading, error, refetch };
+  return {
+    metrics,
+    funnel,
+    health,
+    recentEvents,
+    recentIntegrationEvents,
+    recentIntegrationErrors,
+    loading,
+    error,
+    refetch
+  };
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { DataTable, type DataTableColumn } from '../components/common/DataTable';
 import { EmptyState } from '../components/common/EmptyState';
 import { SectionCard } from '../components/common/SectionCard';
@@ -13,6 +13,7 @@ import {
 } from '../core/constants/domain';
 import { formatUnknownDateTime } from '../core/mappers/display';
 import type { ServiceRequest } from '../core/entities';
+import { useProjectContext } from '../context/ProjectContext';
 import { confirmServiceRequest } from '../core/use-cases/confirmServiceRequest';
 import { useCollectionQuery } from '../hooks/useCollectionQuery';
 import { getServiceRequests } from '../services/firestore/serviceRequests';
@@ -25,8 +26,12 @@ interface ActionFeedback {
 type ServiceRequestFilter = 'all' | ServiceRequest['status'];
 
 export function ServiceRequestsPage() {
+  const { activeProject, activeProjectId } = useProjectContext();
   const { data: requests, loading, error, refetch } = useCollectionQuery(
-    getServiceRequests,
+    useCallback(
+      () => (activeProjectId ? getServiceRequests(activeProjectId) : Promise.resolve([])),
+      [activeProjectId]
+    ),
     'Erro ao carregar solicitações.'
   );
   const [submittingRequestId, setSubmittingRequestId] = useState<string | null>(null);
@@ -48,7 +53,7 @@ export function ServiceRequestsPage() {
       setFeedback({
         tone: 'success',
         message:
-          'Solicitação confirmada com sucesso. O agendamento correspondente foi criado no core.'
+          'Solicitação confirmada com sucesso. O Core registrou o integrationEvent, despachou o outbound e atualizou o resultado operacional.'
       });
     } catch (err) {
       const message =
@@ -86,11 +91,6 @@ export function ServiceRequestsPage() {
       cell: (request) => request.requestedTime || '-'
     },
     {
-      id: 'projectId',
-      header: 'Projeto',
-      cell: (request) => request.projectId
-    },
-    {
       id: 'contactId',
       header: 'Contato',
       cell: (request) => request.contactId
@@ -99,6 +99,11 @@ export function ServiceRequestsPage() {
       id: 'source',
       header: 'Origem',
       cell: (request) => request.source || '-'
+    },
+    {
+      id: 'lastIntegrationError',
+      header: 'Último erro',
+      cell: (request) => request.lastIntegrationError || '-'
     },
     {
       id: 'createdAt',
@@ -115,7 +120,11 @@ export function ServiceRequestsPage() {
         if (!isConfirmable) {
           return (
             <span className="table-note">
-              {request.status === 'confirmado' ? 'Agendamento gerado' : 'Sem ação disponível'}
+              {request.status === 'integrado'
+                ? 'Integração concluída'
+                : request.status === 'confirmado'
+                  ? 'Despacho em andamento'
+                  : 'Sem ação disponível'}
             </span>
           );
         }
@@ -141,7 +150,11 @@ export function ServiceRequestsPage() {
       <PageHeader
         eyebrow="Operational queue"
         title="Service Requests"
-        description="Fila operacional principal do core, já com ação real de confirmação e pronta para crescer com filtros, bots e múltiplos projetos."
+        description={
+          activeProject
+            ? `Fila operacional do projeto ${activeProject.slug}. A confirmação agora aciona oficialmente a integração outbound do Core.`
+            : 'Selecione um projeto para operar a fila principal do Core.'
+        }
         actions={
           <button type="button" onClick={() => void refetch()}>
             Atualizar fila
@@ -159,10 +172,22 @@ export function ServiceRequestsPage() {
 
       {!loading && error && <p className="state error">Erro ao carregar dados: {error}</p>}
 
-      {!loading && !error && (
+      {!activeProject && !loading && !error && (
+        <SectionCard
+          title="Projeto obrigatório"
+          description="A fila do Core sempre deve ser trabalhada dentro do contexto de um projeto."
+        >
+          <EmptyState
+            title="Selecione um projeto"
+            description="Use o seletor do topo para escolher o tenant operacional antes de confirmar solicitações."
+          />
+        </SectionCard>
+      )}
+
+      {!loading && !error && activeProject && (
         <SectionCard
           title="Requests queue"
-          description="A entidade de entrada principal do core com foco em triagem, confirmação e observabilidade."
+          description="`serviceRequests` é a principal entrada operacional do Core. A ação de confirmação aprova e dispara a integração outbound, sem transformar o Core na fonte de verdade do agendamento."
           aside={
             <div className="filter-bar" aria-label="Filtros por status">
               <button

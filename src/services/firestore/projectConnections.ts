@@ -1,26 +1,36 @@
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   query,
   serverTimestamp,
-  updateDoc,
   where,
-  doc,
+  updateDoc,
   type DocumentData
 } from 'firebase/firestore';
 import {
+  PROJECT_CONNECTION_DIRECTIONS,
   PROJECT_CONNECTION_ENVIRONMENTS,
   PROJECT_CONNECTION_PROVIDERS,
+  PROJECT_CONNECTION_STATUSES,
   PROJECT_CONNECTION_TYPES,
-  PROJECT_STATUSES,
+  type ProjectConnectionDirection,
   type ProjectConnectionEnvironment,
   type ProjectConnectionProvider,
+  type ProjectConnectionStatus,
   type ProjectConnectionType,
-  type ProjectStatus
+  type ServiceRequestType
 } from '../../core/constants/domain';
 import { FIRESTORE_COLLECTIONS } from '../../core/constants/firestoreCollections';
-import { mapQuerySnapshot, readEnumValue, readString, readUnknown } from '../../core/mappers/firestore';
+import {
+  mapQuerySnapshot,
+  readEnumValue,
+  readOptionalUnknown,
+  readString,
+  readStringArray,
+  readUnknown
+} from '../../core/mappers/firestore';
 import type { ProjectConnection } from '../../core/entities';
 import { db } from '../../firebase/config';
 
@@ -28,9 +38,14 @@ export interface CreateProjectConnectionInput {
   projectId: string;
   connectionType: ProjectConnectionType;
   provider: ProjectConnectionProvider;
-  status: ProjectStatus;
+  status: ProjectConnectionStatus;
   targetProjectId: string;
   environment: ProjectConnectionEnvironment;
+  endpointUrl: string;
+  authToken: string;
+  direction: ProjectConnectionDirection;
+  acceptedEventTypes?: ServiceRequestType[];
+  retryPolicy?: ProjectConnection['retryPolicy'];
 }
 
 export interface UpdateProjectConnectionInput
@@ -49,8 +64,8 @@ function mapProjectConnectionDocument(
       PROJECT_CONNECTION_TYPES,
       'scheduling'
     ),
-    provider: readEnumValue(data, 'provider', PROJECT_CONNECTION_PROVIDERS, 'firebase'),
-    status: readEnumValue(data, 'status', PROJECT_STATUSES, 'inactive'),
+    provider: readEnumValue(data, 'provider', PROJECT_CONNECTION_PROVIDERS, 'http'),
+    status: readEnumValue(data, 'status', PROJECT_CONNECTION_STATUSES, 'inactive'),
     targetProjectId: readString(data, 'targetProjectId'),
     environment: readEnumValue(
       data,
@@ -58,6 +73,15 @@ function mapProjectConnectionDocument(
       PROJECT_CONNECTION_ENVIRONMENTS,
       'dev'
     ),
+    endpointUrl: readString(data, 'endpointUrl'),
+    authToken: readString(data, 'authToken'),
+    direction: readEnumValue(data, 'direction', PROJECT_CONNECTION_DIRECTIONS, 'outbound'),
+    acceptedEventTypes: readStringArray(data, 'acceptedEventTypes') as
+      | ServiceRequestType[]
+      | undefined,
+    retryPolicy: readOptionalUnknown(data, 'retryPolicy') as
+      | ProjectConnection['retryPolicy']
+      | undefined,
     createdAt: readUnknown(data, 'createdAt')
   };
 }
@@ -65,33 +89,64 @@ function mapProjectConnectionDocument(
 // `projectConnections` representa a camada de integrações externas do core.
 // É por aqui que o orquestrador vai conectar projetos a sistemas como
 // agendamentos-ai e outros módulos futuros sem acoplar o domínio principal.
-export async function getProjectConnections(): Promise<ProjectConnection[]> {
-  const snapshot = await getDocs(collection(db, FIRESTORE_COLLECTIONS.projectConnections));
+export async function getProjectConnections(projectId?: string): Promise<ProjectConnection[]> {
+  const baseCollection = collection(db, FIRESTORE_COLLECTIONS.projectConnections);
+  const snapshot = projectId
+    ? await getDocs(query(baseCollection, where('projectId', '==', projectId)))
+    : await getDocs(baseCollection);
 
   return mapQuerySnapshot(snapshot, ({ id, data }) => mapProjectConnectionDocument(id, data)).sort(
-    (left, right) => left.projectId.localeCompare(right.projectId, 'pt-BR')
+    (left, right) => {
+      const leftKey = `${left.projectId} ${left.connectionType} ${left.environment}`;
+      const rightKey = `${right.projectId} ${right.connectionType} ${right.environment}`;
+      return leftKey.localeCompare(rightKey, 'pt-BR');
+    }
   );
 }
 
 export async function getConnectionsByProject(
   projectId: string
 ): Promise<ProjectConnection[]> {
-  const connectionsQuery = query(
-    collection(db, FIRESTORE_COLLECTIONS.projectConnections),
-    where('projectId', '==', projectId)
-  );
-  const snapshot = await getDocs(connectionsQuery);
+  return getProjectConnections(projectId);
+}
 
-  return mapQuerySnapshot(snapshot, ({ id, data }) => mapProjectConnectionDocument(id, data));
+export async function getPreferredProjectConnection(
+  projectId: string,
+  environmentPreference: ProjectConnectionEnvironment,
+  connectionType: ProjectConnectionType = 'scheduling',
+  acceptedEventType?: ServiceRequestType
+): Promise<ProjectConnection | null> {
+  const connections = await getConnectionsByProject(projectId);
+  const activeConnections = connections.filter(
+    (connection) =>
+      connection.status === 'active' &&
+      connection.direction === 'outbound' &&
+      connection.connectionType === connectionType &&
+      (!acceptedEventType ||
+        !connection.acceptedEventTypes ||
+        connection.acceptedEventTypes.length === 0 ||
+        connection.acceptedEventTypes.includes(acceptedEventType))
+  );
+
+  const preferredConnection = activeConnections.find(
+    (connection) => connection.environment === environmentPreference
+  );
+
+  return preferredConnection ?? activeConnections[0] ?? null;
 }
 
 export async function createProjectConnection(
   data: CreateProjectConnectionInput
-): Promise<void> {
-  await addDoc(collection(db, FIRESTORE_COLLECTIONS.projectConnections), {
+): Promise<string> {
+  const documentRef = await addDoc(collection(db, FIRESTORE_COLLECTIONS.projectConnections), {
     ...data,
+    endpointUrl: data.endpointUrl.trim(),
+    authToken: data.authToken.trim(),
+    targetProjectId: data.targetProjectId.trim(),
     createdAt: serverTimestamp()
   });
+
+  return documentRef.id;
 }
 
 export async function updateProjectConnection(

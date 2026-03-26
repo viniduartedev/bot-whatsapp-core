@@ -10,5 +10,9 @@ export interface ServiceRequest {
   requestedDate: string;
   requestedTime: string;
   status: ServiceRequestStatus;
+  confirmedAt?: unknown;
+  integratedAt?: unknown;
+  lastIntegrationEventId?: string;
+  lastIntegrationError?: string;
   createdAt: unknown;
 }

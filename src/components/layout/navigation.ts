@@ -13,7 +13,12 @@ interface PageMeta {
 
 export const opsNavigation: NavigationItem[] = [
   { to: '/dashboard', label: 'Dashboard', code: 'DB', description: 'Visão operacional central' },
-  { to: '/events', label: 'Events', code: 'EV', description: 'Stream técnico do bot' },
+  {
+    to: '/events',
+    label: 'Inbound Events',
+    code: 'EV',
+    description: 'Sinais recebidos por projeto'
+  },
   {
     to: '/service-requests',
     label: 'Service Requests',
@@ -21,55 +26,72 @@ export const opsNavigation: NavigationItem[] = [
     description: 'Entrada principal do core'
   },
   {
-    to: '/appointments',
-    label: 'Appointments',
-    code: 'AP',
-    description: 'Conversões e agendamentos'
+    to: '/integrations',
+    label: 'Integrations',
+    code: 'IG',
+    description: 'Eventos e logs outbound'
   },
   { to: '/contacts', label: 'Contacts', code: 'CT', description: 'Relacionamento operacional' },
   { to: '/projects', label: 'Projects', code: 'PR', description: 'Projetos e escopo do core' },
+  {
+    to: '/project-connections',
+    label: 'Connections',
+    code: 'PC',
+    description: 'Integrações subordinadas ao projeto'
+  },
+  {
+    to: '/appointments',
+    label: 'Mirrors',
+    code: 'AM',
+    description: 'Espelhos locais opcionais'
+  },
   { to: '/settings', label: 'Settings', code: 'ST', description: 'Infra e autenticação futura' }
 ];
 
 const pageMetaMap: Record<string, PageMeta> = {
   '/dashboard': {
     title: 'Dashboard',
-    subtitle: 'Centro operacional do core com saúde, funil e sinais recentes do sistema.',
+    subtitle: 'Centro operacional do projeto ativo com saúde, funil e integração outbound observável.',
     kicker: 'Ops overview'
   },
   '/events': {
-    title: 'Events',
-    subtitle: 'Leitura técnica dos inbound events para observabilidade do fluxo do bot.',
-    kicker: 'Event stream'
+    title: 'Inbound Events',
+    subtitle: 'Leitura técnica dos eventos de entrada recebidos pelo Core dentro do projeto ativo.',
+    kicker: 'Inbound stream'
   },
   '/service-requests': {
     title: 'Service Requests',
-    subtitle: 'Fila operacional principal para triagem, confirmação e evolução do atendimento.',
+    subtitle: 'Fila operacional do projeto ativo com confirmação e integração outbound oficial.',
     kicker: 'Operational queue'
   },
+  '/integrations': {
+    title: 'Integrations',
+    subtitle: 'Observabilidade outbound com integration events, logs e conexões do projeto ativo.',
+    kicker: 'Outbound orchestration'
+  },
   '/appointments': {
-    title: 'Appointments',
-    subtitle: 'Agenda gerada pelo core a partir das service requests confirmadas.',
-    kicker: 'Converted flow'
+    title: 'Appointment Mirrors',
+    subtitle: 'Espelhos operacionais locais, sem substituir a fonte de verdade do sistema externo.',
+    kicker: 'Local mirror'
   },
   '/contacts': {
     title: 'Contacts',
-    subtitle: 'Base operacional de pessoas atendidas pelo core e pelos bots futuros.',
+    subtitle: 'Base operacional de contatos pertencentes ao projeto ativo.',
     kicker: 'Relationship layer'
   },
   '/projects': {
     title: 'Projects',
-    subtitle: 'Projetos e ambientes que estruturam a expansão para múltiplos contextos.',
+    subtitle: 'Projects como raiz do contexto multi-tenant e ponto de partida para conexões.',
     kicker: 'Core scope'
   },
   '/project-connections': {
     title: 'Project Connections',
-    subtitle: 'Integrações externas por projeto para o core evoluir como orquestrador.',
+    subtitle: 'Conexões outbound subordinadas ao projeto ativo, prontas para integrar sistemas externos.',
     kicker: 'External orchestration'
   },
   '/settings': {
     title: 'Settings',
-    subtitle: 'Área reservada para autenticação, perfis e controles futuros do painel.',
+    subtitle: 'Área reservada para autenticação, perfis e políticas de autorização por tenant.',
     kicker: 'Control plane'
   },
   '/legacy-requests': {

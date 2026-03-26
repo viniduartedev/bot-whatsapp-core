@@ -6,10 +6,9 @@ export function Sidebar() {
     <aside className="ops-sidebar">
       <div className="ops-sidebar__brand">
         <p className="eyebrow">Core Ops Center</p>
-        <h1>Projeto 2</h1>
+        <h1>Core</h1>
         <p>
-          Painel técnico para observabilidade, operação e crescimento futuro para múltiplos bots e
-          projetos.
+          Orquestrador multi-tenant para eventos inbound, service requests e integrações outbound.
         </p>
       </div>
 
@@ -34,8 +33,8 @@ export function Sidebar() {
       <div className="ops-sidebar__footer">
         <span className="status-dot status-dot--success" />
         <div>
-          <strong>Core observability</strong>
-          <small>Estrutura pronta para autenticação na próxima etapa.</small>
+          <strong>Project-scoped ops</strong>
+          <small>Estrutura pronta para autenticação e isolamento forte na próxima etapa.</small>
         </div>
       </div>
     </aside>

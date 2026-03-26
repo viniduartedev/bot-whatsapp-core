@@ -1,9 +1,11 @@
+import { useCallback } from 'react';
 import { DataTable, type DataTableColumn } from '../components/common/DataTable';
 import { EmptyState } from '../components/common/EmptyState';
 import { SectionCard } from '../components/common/SectionCard';
 import { PageHeader } from '../components/layout/PageHeader';
 import { formatUnknownDateTime } from '../core/mappers/display';
 import type { Contact } from '../core/entities';
+import { useProjectContext } from '../context/ProjectContext';
 import { useCollectionQuery } from '../hooks/useCollectionQuery';
 import { getContacts } from '../services/firestore/contacts';
 
@@ -17,11 +19,6 @@ const columns: DataTableColumn<Contact>[] = [
     id: 'phone',
     header: 'Telefone',
     cell: (contact) => contact.phone || '-'
-  },
-  {
-    id: 'projectId',
-    header: 'Projeto',
-    cell: (contact) => contact.projectId
   },
   {
     id: 'channel',
@@ -41,8 +38,12 @@ const columns: DataTableColumn<Contact>[] = [
 ];
 
 export function ContactsPage() {
+  const { activeProject, activeProjectId } = useProjectContext();
   const { data: contacts, loading, error, refetch } = useCollectionQuery(
-    getContacts,
+    useCallback(
+      () => (activeProjectId ? getContacts(activeProjectId) : Promise.resolve([])),
+      [activeProjectId]
+    ),
     'Erro ao carregar contatos.'
   );
 
@@ -51,7 +52,11 @@ export function ContactsPage() {
       <PageHeader
         eyebrow="Relacionamento operacional"
         title="Contatos"
-        description="Base limpa para leitura rápida de pessoas, canal e última interação dentro do core."
+        description={
+          activeProject
+            ? `Contatos pertencentes ao projeto ${activeProject.slug}, prontos para relacionamento operacional e integração futura.`
+            : 'Selecione um projeto para ver os contatos do tenant ativo.'
+        }
         actions={
           <button type="button" onClick={() => void refetch()}>
             Atualizar contatos
@@ -63,15 +68,27 @@ export function ContactsPage() {
 
       {!loading && error && <p className="state error">Erro ao carregar dados: {error}</p>}
 
-      {!loading && !error && (
+      {!loading && !error && !activeProject && (
+        <SectionCard
+          title="Projeto obrigatório"
+          description="Contacts sempre pertencem a um Project."
+        >
+          <EmptyState
+            title="Selecione um projeto"
+            description="Use o seletor do topo para operar os contatos dentro do contexto correto."
+          />
+        </SectionCard>
+      )}
+
+      {!loading && !error && activeProject && (
         <SectionCard
           title="Contacts registry"
-          description="Visão operacional de contatos para atendimento, bots e integração futura."
+          description="Visão operacional dos contatos vinculados ao projeto ativo."
         >
           {contacts.length === 0 ? (
             <EmptyState
               title="Nenhum contato encontrado"
-              description="Os contatos aparecerão aqui quando o core receber tráfego e relacionamento."
+              description="Os contatos aparecerão aqui quando o Core receber tráfego e relacionamento."
             />
           ) : (
             <DataTable

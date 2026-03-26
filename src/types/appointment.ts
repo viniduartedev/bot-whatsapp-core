@@ -1,5 +1,10 @@
 import type { AppointmentStatus } from '../core/constants/domain';
 
+/**
+ * `appointments` não é a verdade autoritativa do agendamento no Core.
+ * Quando existir, esta coleção representa apenas um espelho operacional local
+ * do que foi aceito ou sincronizado com o sistema externo.
+ */
 export interface Appointment {
   id: string;
   projectId: string;
@@ -8,5 +13,9 @@ export interface Appointment {
   date: string;
   time: string;
   status: AppointmentStatus;
+  sourceOfTruth?: string;
+  integrationEventId?: string;
+  externalReference?: string;
+  lastSyncedAt?: unknown;
   createdAt: unknown;
 }

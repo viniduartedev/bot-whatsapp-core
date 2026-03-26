@@ -235,6 +235,35 @@ code {
   gap: 14px;
 }
 
+.ops-topbar__project {
+  min-width: 250px;
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.56);
+  border: 1px solid var(--line);
+}
+
+.ops-topbar__project span,
+.ops-topbar__project small {
+  color: var(--muted);
+}
+
+.ops-topbar__project small {
+  font-size: 0.82rem;
+}
+
+.ops-topbar__project select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text);
+  font: inherit;
+}
+
 .ops-topbar__profile {
   min-width: 190px;
   padding: 10px 14px;
@@ -549,6 +578,13 @@ code {
 .table-actions {
   display: flex;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.table-actions--stacked {
+  align-items: flex-start;
+  flex-direction: column;
 }
 
 .button-inline {
@@ -615,6 +651,15 @@ code {
   grid-column: 1 / -1;
   display: flex;
   justify-content: flex-start;
+}
+
+.scope-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.scope-summary span {
+  color: var(--muted);
 }
 
 .empty-state {
@@ -719,6 +764,16 @@ code {
     position: static;
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .ops-topbar__actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .ops-topbar__project,
+  .ops-topbar__profile {
+    width: 100%;
   }
 }
 

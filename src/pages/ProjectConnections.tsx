@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DataTable, type DataTableColumn } from '../components/common/DataTable';
 import { EmptyState } from '../components/common/EmptyState';
 import { SectionCard } from '../components/common/SectionCard';
-import { StatusBadge, getProjectTone } from '../components/common/StatusBadge';
+import {
+  StatusBadge,
+  getProjectConnectionTone
+} from '../components/common/StatusBadge';
 import { PageHeader } from '../components/layout/PageHeader';
 import { formatUnknownDateTime } from '../core/mappers/display';
-import type { Project, ProjectConnection } from '../core/entities';
+import type { ProjectConnection } from '../core/entities';
+import { useProjectContext } from '../context/ProjectContext';
 import { useCollectionQuery } from '../hooks/useCollectionQuery';
 import {
   createProjectConnection,
-  getProjectConnections,
+  getConnectionsByProject,
   type CreateProjectConnectionInput
 } from '../services/firestore/projectConnections';
-import { getProjects } from '../services/firestore/projects';
 
 interface ActionFeedback {
   tone: 'success' | 'error';
@@ -25,10 +28,14 @@ type ProjectConnectionFormState = CreateProjectConnectionInput;
 const DEFAULT_FORM_STATE: ProjectConnectionFormState = {
   projectId: '',
   connectionType: 'scheduling',
-  provider: 'firebase',
+  provider: 'http',
   status: 'active',
   targetProjectId: '',
-  environment: 'dev'
+  environment: 'dev',
+  endpointUrl: '',
+  authToken: '',
+  direction: 'outbound',
+  acceptedEventTypes: ['appointment']
 };
 
 function getEnvironmentTone(environment: ProjectConnection['environment']) {
@@ -36,20 +43,32 @@ function getEnvironmentTone(environment: ProjectConnection['environment']) {
 }
 
 export function ProjectConnectionsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedProjectId = searchParams.get('projectId') ?? '';
   const {
-    data: projects,
+    projects,
+    activeProjectId,
     loading: projectsLoading,
     error: projectsError,
-    refetch: refetchProjects
-  } = useCollectionQuery(getProjects, 'Erro ao carregar projetos para conexões.');
+    setActiveProjectId
+  } = useProjectContext();
+  const selectedProjectId = searchParams.get('projectId') ?? activeProjectId;
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId]
+  );
   const {
     data: connections,
     loading: connectionsLoading,
     error: connectionsError,
     refetch: refetchConnections
-  } = useCollectionQuery(getProjectConnections, 'Erro ao carregar conexões.');
+  } = useCollectionQuery(
+    useCallback(
+      () => (selectedProjectId ? getConnectionsByProject(selectedProjectId) : Promise.resolve([])),
+      [selectedProjectId]
+    ),
+    'Erro ao carregar conexões.'
+  );
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<ActionFeedback | null>(null);
@@ -66,32 +85,17 @@ export function ProjectConnectionsPage() {
       return;
     }
 
+    if (selectedProjectId !== activeProjectId) {
+      setActiveProjectId(selectedProjectId);
+    }
+
     setFormState((current) => ({
       ...current,
       projectId: selectedProjectId
     }));
-  }, [selectedProjectId]);
-
-  const projectLookup = useMemo(
-    () => new Map(projects.map((project) => [project.id, project])),
-    [projects]
-  );
-
-  const filteredConnections = selectedProjectId
-    ? connections.filter((connection) => connection.projectId === selectedProjectId)
-    : connections;
-
-  const selectedProject = selectedProjectId ? projectLookup.get(selectedProjectId) : null;
+  }, [activeProjectId, selectedProjectId, setActiveProjectId]);
 
   const columns: DataTableColumn<ProjectConnection>[] = [
-    {
-      id: 'projectId',
-      header: 'Projeto',
-      cell: (connection) => {
-        const project = projectLookup.get(connection.projectId);
-        return project ? `${project.name} (${project.slug})` : connection.projectId;
-      }
-    },
     {
       id: 'connectionType',
       header: 'Tipo',
@@ -103,9 +107,29 @@ export function ProjectConnectionsPage() {
       cell: (connection) => connection.provider
     },
     {
+      id: 'direction',
+      header: 'Direção',
+      cell: (connection) => connection.direction
+    },
+    {
       id: 'targetProjectId',
       header: 'Target project',
       cell: (connection) => connection.targetProjectId
+    },
+    {
+      id: 'endpointUrl',
+      header: 'Endpoint',
+      cell: (connection) => connection.endpointUrl || '-'
+    },
+    {
+      id: 'authToken',
+      header: 'Token',
+      cell: (connection) =>
+        connection.authToken ? (
+          <StatusBadge label="configured" tone="warning" />
+        ) : (
+          <span className="table-note">not set</span>
+        )
     },
     {
       id: 'environment',
@@ -121,7 +145,10 @@ export function ProjectConnectionsPage() {
       id: 'status',
       header: 'Status',
       cell: (connection) => (
-        <StatusBadge label={connection.status} tone={getProjectTone(connection.status)} />
+        <StatusBadge
+          label={connection.status}
+          tone={getProjectConnectionTone(connection.status)}
+        />
       )
     },
     {
@@ -135,10 +162,10 @@ export function ProjectConnectionsPage() {
     event.preventDefault();
     setFeedback(null);
 
-    if (!formState.projectId || !formState.targetProjectId.trim()) {
+    if (!selectedProjectId || !formState.targetProjectId.trim() || !formState.endpointUrl.trim()) {
       setFeedback({
         tone: 'error',
-        message: 'Selecione um projeto e informe o targetProjectId da conexão.'
+        message: 'Informe targetProjectId e endpointUrl para registrar a conexão.'
       });
       return;
     }
@@ -147,12 +174,15 @@ export function ProjectConnectionsPage() {
       setIsSubmitting(true);
       await createProjectConnection({
         ...formState,
-        targetProjectId: formState.targetProjectId.trim()
+        projectId: selectedProjectId,
+        targetProjectId: formState.targetProjectId.trim(),
+        endpointUrl: formState.endpointUrl.trim(),
+        authToken: formState.authToken.trim()
       });
       await refetchConnections();
       setFeedback({
         tone: 'success',
-        message: 'Conexão criada com sucesso. O core já reconhece essa integração externa.'
+        message: 'ProjectConnection criada com sucesso. O projeto agora possui uma instalação outbound oficial.'
       });
       setIsFormOpen(false);
       setFormState({
@@ -161,9 +191,7 @@ export function ProjectConnectionsPage() {
       });
     } catch (submitError) {
       const message =
-        submitError instanceof Error
-          ? submitError.message
-          : 'Não foi possível criar a conexão.';
+        submitError instanceof Error ? submitError.message : 'Não foi possível criar a conexão.';
       setFeedback({
         tone: 'error',
         message
@@ -188,24 +216,17 @@ export function ProjectConnectionsPage() {
       <PageHeader
         eyebrow="Integrações externas"
         title="Project Connections"
-        description="`projectConnections` é a camada que prepara o core para orquestrar integrações com agendamentos-ai e outros sistemas futuros."
+        description={
+          selectedProject
+            ? `As conexões abaixo pertencem ao projeto ${selectedProject.name}. ` +
+              '`ProjectConnection` sempre nasce subordinada a um `Project`.'
+            : 'Primeiro escolha um projeto. Depois o Core permite configurar as conexões outbound desse tenant.'
+        }
         actions={
           <div className="page-header__actions">
-            {selectedProjectId && (
-              <button
-                type="button"
-                className="button-inline"
-                onClick={() => {
-                  setSearchParams({});
-                  setFormState((current) => ({
-                    ...current,
-                    projectId: ''
-                  }));
-                }}
-              >
-                Limpar filtro
-              </button>
-            )}
+            <button type="button" className="button-inline" onClick={() => navigate('/projects')}>
+              Ver projetos
+            </button>
             <button type="button" onClick={() => setIsFormOpen((current) => !current)}>
               {isFormOpen ? 'Fechar formulário' : 'Nova conexão'}
             </button>
@@ -223,25 +244,51 @@ export function ProjectConnectionsPage() {
 
       {!loading && error && <p className="state error">Erro ao carregar dados: {error}</p>}
 
-      {!loading && !error && isFormOpen && (
+      {!loading && !error && !selectedProject && (
+        <SectionCard
+          title="Projeto obrigatório"
+          description="Sem `Project`, não existe escopo seguro para `ProjectConnection`."
+        >
+          <EmptyState
+            title="Selecione um projeto"
+            description="Use o seletor do topo ou abra a tela Projects para criar/ativar o projeto antes de cadastrar conexões."
+          />
+        </SectionCard>
+      )}
+
+      {!loading && !error && selectedProject && (
+        <SectionCard
+          title="Projeto raiz"
+          description="Este projeto é o tenant operacional que receberá contacts, serviceRequests, inboundEvents e integrações outbound."
+          aside={
+            <button
+              type="button"
+              className="button-inline"
+              onClick={() => {
+                setActiveProjectId(selectedProject.id);
+                setSearchParams({ projectId: selectedProject.id });
+              }}
+            >
+              Fixar como ativo
+            </button>
+          }
+        >
+          <div className="scope-summary">
+            <strong>{selectedProject.name}</strong>
+            <span>{selectedProject.slug}</span>
+          </div>
+        </SectionCard>
+      )}
+
+      {!loading && !error && isFormOpen && selectedProject && (
         <SectionCard
           title="Nova conexão"
-          description="O core está evoluindo para um orquestrador. Aqui cadastramos conexões externas por projeto, sem ativar a integração real ainda."
+          description="Aqui o Core registra a instalação outbound do projeto. O sistema externo continua sendo a fonte de verdade do domínio integrado."
         >
           <form className="form-grid" onSubmit={handleSubmit}>
             <label className="form-field">
               <span>Projeto</span>
-              <select
-                value={formState.projectId}
-                onChange={(event) => updateField('projectId', event.target.value)}
-              >
-                <option value="">Selecione um projeto</option>
-                {projects.map((project: Project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name} ({project.slug})
-                  </option>
-                ))}
-              </select>
+              <input value={`${selectedProject.name} (${selectedProject.slug})`} disabled />
             </label>
 
             <label className="form-field">
@@ -249,7 +296,10 @@ export function ProjectConnectionsPage() {
               <select
                 value={formState.connectionType}
                 onChange={(event) =>
-                  updateField('connectionType', event.target.value as CreateProjectConnectionInput['connectionType'])
+                  updateField(
+                    'connectionType',
+                    event.target.value as CreateProjectConnectionInput['connectionType']
+                  )
                 }
               >
                 <option value="scheduling">scheduling</option>
@@ -264,6 +314,7 @@ export function ProjectConnectionsPage() {
                   updateField('provider', event.target.value as CreateProjectConnectionInput['provider'])
                 }
               >
+                <option value="http">http</option>
                 <option value="firebase">firebase</option>
               </select>
             </label>
@@ -294,6 +345,25 @@ export function ProjectConnectionsPage() {
             </label>
 
             <label className="form-field">
+              <span>Endpoint URL</span>
+              <input
+                value={formState.endpointUrl}
+                onChange={(event) => updateField('endpointUrl', event.target.value)}
+                placeholder="https://agendamentos-ai.example.com/integrations/requests"
+              />
+            </label>
+
+            <label className="form-field">
+              <span>Auth token</span>
+              <input
+                type="password"
+                value={formState.authToken}
+                onChange={(event) => updateField('authToken', event.target.value)}
+                placeholder="Bearer token usado no outbound"
+              />
+            </label>
+
+            <label className="form-field">
               <span>Status</span>
               <select
                 value={formState.status}
@@ -306,6 +376,11 @@ export function ProjectConnectionsPage() {
               </select>
             </label>
 
+            <label className="form-field">
+              <span>Direção</span>
+              <input value={formState.direction} disabled />
+            </label>
+
             <div className="form-actions">
               <button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? 'Salvando...' : 'Salvar conexão'}
@@ -315,35 +390,24 @@ export function ProjectConnectionsPage() {
         </SectionCard>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && selectedProject && (
         <SectionCard
           title="Connections registry"
-          description={
-            selectedProject
-              ? `Conexões externas do projeto ${selectedProject.name}.`
-              : 'Registro técnico das integrações externas cadastradas por projeto.'
-          }
+          description={`Conexões outbound subordinadas ao projeto ${selectedProject.name}.`}
           aside={
-            <button
-              type="button"
-              className="button-inline"
-              onClick={() => {
-                void refetchProjects();
-                void refetchConnections();
-              }}
-            >
+            <button type="button" className="button-inline" onClick={() => void refetchConnections()}>
               Atualizar conexões
             </button>
           }
         >
-          {filteredConnections.length === 0 ? (
+          {connections.length === 0 ? (
             <EmptyState
               title="Nenhuma conexão cadastrada"
-              description="Use o formulário para cadastrar a primeira integração externa do core."
+              description="Crie a primeira projectConnection outbound para permitir que este projeto despache integrações."
             />
           ) : (
             <DataTable
-              items={filteredConnections}
+              items={connections}
               columns={columns}
               getRowKey={(connection) => connection.id}
               caption="Lista de conexões de projeto"

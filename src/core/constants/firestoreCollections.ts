@@ -9,6 +9,8 @@ export const FIRESTORE_COLLECTIONS = {
   inboundEvents: 'inboundEvents',
   projectConnections: 'projectConnections',
   serviceRequests: 'serviceRequests',
+  integrationEvents: 'integrationEvents',
+  integrationLogs: 'integrationLogs',
   appointments: 'appointments',
   legacyAppointmentRequests: 'appointmentRequests'
 } as const;

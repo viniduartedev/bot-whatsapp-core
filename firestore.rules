@@ -1,11 +1,16 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Etapa atual do Projeto 2:
-    // leitura pública temporária enquanto estruturamos o core sem autenticação.
-    // Em fases futuras estas regras devem convergir para auth + autorização por perfil.
+    // Etapa atual do Core:
+    // ainda estamos sem autenticação e autorização por tenant, então as regras
+    // seguem abertas para desenvolvimento. Mesmo assim, reduzimos a superfície de
+    // escrita e deixamos explícito que `Project` é a raiz do escopo operacional.
+    //
+    // Próxima etapa:
+    // convergir para auth + autorização por projeto/perfil, removendo leitura e
+    // escrita públicas.
     match /projects/{projectId} {
-      allow read: if true;
+      allow read, create: if true;
     }
 
     match /contacts/{contactId} {
@@ -25,10 +30,21 @@ service cloud.firestore {
       allow read, update: if true;
     }
 
-    match /appointments/{appointmentId} {
-      // `appointments` representa a conversão real da solicitação em agendamento.
-      // Neste estágio liberamos criação pelo painel para validar o fluxo.
+    // `integrationEvents` e `integrationLogs` materializam a observabilidade
+    // outbound do Core. O sistema externo continua sendo a fonte de verdade do
+    // domínio integrado; aqui registramos a orquestração operacional.
+    match /integrationEvents/{integrationEventId} {
+      allow read, create, update: if true;
+    }
+
+    match /integrationLogs/{integrationLogId} {
       allow read, create: if true;
+    }
+
+    match /appointments/{appointmentId} {
+      // `appointments` agora é apenas um espelho operacional local opcional.
+      // O Core não assume mais a verdade autoritativa do agendamento.
+      allow read: if true;
     }
 
     // Coleção legada mantida durante a migração gradual.

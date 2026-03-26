@@ -1,15 +1,21 @@
-import type { FieldValue } from 'firebase/firestore';
-import { runTransaction, serverTimestamp } from 'firebase/firestore';
-import { canConfirmServiceRequestStatus } from '../constants/domain';
-import { buildAppointmentIdFromRequestId } from '../constants/identifiers';
-import type { Appointment, ServiceRequest } from '../entities';
-import { db } from '../../firebase/config';
 import {
-  getAppointmentByRequestId,
-  getAppointmentDocumentRef
-} from '../../services/firestore/appointments';
+  collection,
+  doc,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  type FieldValue
+} from 'firebase/firestore';
+import { canConfirmServiceRequestStatus } from '../constants/domain';
+import { FIRESTORE_COLLECTIONS } from '../constants/firestoreCollections';
+import type { IntegrationEvent, IntegrationLog, ServiceRequest } from '../entities';
+import { db } from '../../firebase/config';
+import { getContactById } from '../../services/firestore/contacts';
+import { getPreferredProjectConnection } from '../../services/firestore/projectConnections';
 import {
   getServiceRequestDocumentRef,
+  getServiceRequestById,
   mapServiceRequestSnapshot
 } from '../../services/firestore/serviceRequests';
 
@@ -17,7 +23,10 @@ export type ConfirmServiceRequestErrorCode =
   | 'invalid-request-id'
   | 'request-not-found'
   | 'invalid-status'
-  | 'appointment-already-exists';
+  | 'contact-not-found'
+  | 'project-connection-not-found'
+  | 'project-connection-invalid'
+  | 'integration-dispatch-failed';
 
 export class ConfirmServiceRequestError extends Error {
   constructor(
@@ -29,24 +38,117 @@ export class ConfirmServiceRequestError extends Error {
   }
 }
 
-interface AppointmentWritePayload extends Omit<Appointment, 'id' | 'createdAt'> {
+interface IntegrationEventWritePayload
+  extends Omit<IntegrationEvent, 'id' | 'createdAt' | 'dispatchedAt' | 'completedAt'> {
   createdAt: FieldValue;
 }
 
-function buildAppointmentWritePayload(serviceRequest: ServiceRequest): AppointmentWritePayload {
-  // Primeira regra de negócio real do core:
-  // `serviceRequests` é a entrada principal e `appointments` representa a
-  // conversão da solicitação em um agendamento real. O bot deve escrever aqui
-  // futuramente, mas nesta etapa o painel já passa a executar essa regra.
+interface IntegrationLogWritePayload extends Omit<IntegrationLog, 'id' | 'createdAt'> {
+  createdAt: FieldValue;
+}
+
+interface IntegrationResponseSummary {
+  status: number | null;
+  body: unknown;
+}
+
+function buildIntegrationRequestSummary(serviceRequest: ServiceRequest, contact: {
+  id: string;
+  name: string;
+  phone: string;
+}) {
+  return {
+    serviceRequestId: serviceRequest.id,
+    projectId: serviceRequest.projectId,
+    type: serviceRequest.type,
+    channel: serviceRequest.channel,
+    requestedDate: serviceRequest.requestedDate,
+    requestedTime: serviceRequest.requestedTime,
+    source: serviceRequest.source,
+    contact: {
+      id: contact.id,
+      name: contact.name,
+      phone: contact.phone
+    }
+  };
+}
+
+function buildIntegrationEventWritePayload(input: {
+  serviceRequest: ServiceRequest;
+  contactId: string;
+  connection: Awaited<ReturnType<typeof getPreferredProjectConnection>>;
+  requestSummary: ReturnType<typeof buildIntegrationRequestSummary>;
+}): IntegrationEventWritePayload {
+  const { serviceRequest, contactId, connection, requestSummary } = input;
+
   return {
     projectId: serviceRequest.projectId,
-    requestId: serviceRequest.id,
-    contactId: serviceRequest.contactId,
-    date: serviceRequest.requestedDate,
-    time: serviceRequest.requestedTime,
-    status: 'confirmado',
+    serviceRequestId: serviceRequest.id,
+    ...(connection ? { connectionId: connection.id } : {}),
+    contactId,
+    eventType: 'service_request_confirmation',
+    direction: 'outbound',
+    provider: connection?.provider ?? 'http',
+    targetProjectId: connection?.targetProjectId ?? '',
+    endpointUrl: connection?.endpointUrl ?? '',
+    status: 'pending',
+    requestSummary,
     createdAt: serverTimestamp()
   };
+}
+
+function buildIntegrationLogWritePayload(input: {
+  projectId: string;
+  integrationEventId: string;
+  serviceRequestId: string;
+  connectionId?: string;
+  status: IntegrationLog['status'];
+  message: string;
+  httpStatus?: number;
+  payloadSummary?: unknown;
+  responseSummary?: unknown;
+}): IntegrationLogWritePayload {
+  return {
+    projectId: input.projectId,
+    integrationEventId: input.integrationEventId,
+    serviceRequestId: input.serviceRequestId,
+    ...(input.connectionId ? { connectionId: input.connectionId } : {}),
+    status: input.status,
+    attemptNumber: 1,
+    message: input.message,
+    ...(input.httpStatus !== undefined ? { httpStatus: input.httpStatus } : {}),
+    ...(input.payloadSummary !== undefined ? { payloadSummary: input.payloadSummary } : {}),
+    ...(input.responseSummary !== undefined ? { responseSummary: input.responseSummary } : {}),
+    createdAt: serverTimestamp()
+  };
+}
+
+async function parseIntegrationResponse(response: Response): Promise<IntegrationResponseSummary> {
+  const text = await response.text();
+
+  if (!text) {
+    return {
+      status: response.status,
+      body: null
+    };
+  }
+
+  try {
+    return {
+      status: response.status,
+      body: JSON.parse(text) as unknown
+    };
+  } catch {
+    return {
+      status: response.status,
+      body: text
+    };
+  }
+}
+
+async function writeIntegrationLog(payload: IntegrationLogWritePayload): Promise<void> {
+  const logRef = doc(collection(db, FIRESTORE_COLLECTIONS.integrationLogs));
+  await setDoc(logRef, payload);
 }
 
 export async function confirmServiceRequest(requestId: string): Promise<void> {
@@ -59,50 +161,279 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     );
   }
 
-  const existingAppointment = await getAppointmentByRequestId(normalizedRequestId);
+  const serviceRequest = await getServiceRequestById(normalizedRequestId);
 
-  if (existingAppointment) {
+  if (!serviceRequest) {
     throw new ConfirmServiceRequestError(
-      'appointment-already-exists',
-      'Esta solicitação já possui um agendamento criado.'
+      'request-not-found',
+      'Solicitação de serviço não encontrada.'
     );
   }
 
-  const serviceRequestRef = getServiceRequestDocumentRef(normalizedRequestId);
-  const appointmentRef = getAppointmentDocumentRef(
-    buildAppointmentIdFromRequestId(normalizedRequestId)
+  if (!canConfirmServiceRequestStatus(serviceRequest.status)) {
+    throw new ConfirmServiceRequestError(
+      'invalid-status',
+      'A solicitação só pode ser confirmada quando estiver como nova, em análise ou após erro de integração.'
+    );
+  }
+
+  const contact = await getContactById(serviceRequest.contactId);
+
+  if (!contact) {
+    throw new ConfirmServiceRequestError(
+      'contact-not-found',
+      'O contato vinculado à solicitação não foi encontrado.'
+    );
+  }
+
+  const environmentPreference = import.meta.env.PROD ? 'prod' : 'dev';
+  const connection = await getPreferredProjectConnection(
+    serviceRequest.projectId,
+    environmentPreference,
+    'scheduling',
+    serviceRequest.type
   );
+  const requestSummary = buildIntegrationRequestSummary(serviceRequest, contact);
+  const serviceRequestRef = getServiceRequestDocumentRef(normalizedRequestId);
+  const integrationEventRef = doc(collection(db, FIRESTORE_COLLECTIONS.integrationEvents));
+  const integrationEventPayload = buildIntegrationEventWritePayload({
+    serviceRequest,
+    contactId: contact.id,
+    connection,
+    requestSummary
+  });
 
   await runTransaction(db, async (transaction) => {
     const serviceRequestSnapshot = await transaction.get(serviceRequestRef);
-    const serviceRequest = mapServiceRequestSnapshot(serviceRequestSnapshot);
+    const currentServiceRequest = mapServiceRequestSnapshot(serviceRequestSnapshot);
 
-    if (!serviceRequest) {
+    if (!currentServiceRequest) {
       throw new ConfirmServiceRequestError(
         'request-not-found',
         'Solicitação de serviço não encontrada.'
       );
     }
 
-    if (!canConfirmServiceRequestStatus(serviceRequest.status)) {
+    if (!canConfirmServiceRequestStatus(currentServiceRequest.status)) {
       throw new ConfirmServiceRequestError(
         'invalid-status',
-        'A solicitação só pode ser confirmada quando estiver como novo ou em análise.'
-      );
-    }
-
-    const appointmentSnapshot = await transaction.get(appointmentRef);
-
-    if (appointmentSnapshot.exists()) {
-      throw new ConfirmServiceRequestError(
-        'appointment-already-exists',
-        'Esta solicitação já possui um agendamento criado.'
+        'A solicitação só pode ser confirmada quando estiver como nova, em análise ou após erro de integração.'
       );
     }
 
     transaction.update(serviceRequestRef, {
-      status: 'confirmado'
+      status: 'confirmado',
+      confirmedAt: currentServiceRequest.confirmedAt ?? serverTimestamp(),
+      lastIntegrationEventId: integrationEventRef.id,
+      lastIntegrationError: ''
     });
-    transaction.set(appointmentRef, buildAppointmentWritePayload(serviceRequest));
+    transaction.set(integrationEventRef, integrationEventPayload);
   });
+
+  if (!connection) {
+    const message =
+      'Nenhuma projectConnection outbound ativa foi encontrada para este projeto no ambiente atual.';
+
+    await writeIntegrationLog(
+      buildIntegrationLogWritePayload({
+        projectId: serviceRequest.projectId,
+        integrationEventId: integrationEventRef.id,
+        serviceRequestId: serviceRequest.id,
+        status: 'error',
+        message,
+        payloadSummary: requestSummary
+      })
+    );
+    await updateDoc(integrationEventRef, {
+      status: 'error',
+      lastError: message,
+      completedAt: serverTimestamp(),
+      responseSummary: {
+        error: 'missing_connection'
+      }
+    });
+    await updateDoc(serviceRequestRef, {
+      status: 'erro_integracao',
+      lastIntegrationError: message
+    });
+
+    throw new ConfirmServiceRequestError('project-connection-not-found', message);
+  }
+
+  if (!connection.endpointUrl.trim()) {
+    const message = 'A projectConnection ativa não possui endpointUrl configurada.';
+
+    await writeIntegrationLog(
+      buildIntegrationLogWritePayload({
+        projectId: serviceRequest.projectId,
+        integrationEventId: integrationEventRef.id,
+        serviceRequestId: serviceRequest.id,
+        connectionId: connection.id,
+        status: 'error',
+        message,
+        payloadSummary: requestSummary
+      })
+    );
+    await updateDoc(integrationEventRef, {
+      status: 'error',
+      lastError: message,
+      completedAt: serverTimestamp(),
+      responseSummary: {
+        error: 'missing_endpoint'
+      }
+    });
+    await updateDoc(serviceRequestRef, {
+      status: 'erro_integracao',
+      lastIntegrationError: message
+    });
+
+    throw new ConfirmServiceRequestError('project-connection-invalid', message);
+  }
+
+  // Nesta etapa o Core despacha outbound direto do painel para consolidar o
+  // fluxo do orquestrador. Quando auth + backend entrarem, este envio deve
+  // migrar para um executor server-side para esconder tokens e reforçar o
+  // isolamento por tenant.
+  const outboundPayload = {
+    project: {
+      id: serviceRequest.projectId,
+      targetProjectId: connection.targetProjectId,
+      environment: connection.environment
+    },
+    serviceRequest: requestSummary,
+    integration: {
+      integrationEventId: integrationEventRef.id,
+      connectionId: connection.id,
+      connectionType: connection.connectionType,
+      provider: connection.provider,
+      direction: connection.direction
+    }
+  };
+
+  await writeIntegrationLog(
+    buildIntegrationLogWritePayload({
+      projectId: serviceRequest.projectId,
+      integrationEventId: integrationEventRef.id,
+      serviceRequestId: serviceRequest.id,
+      connectionId: connection.id,
+      status: 'attempt',
+      message: 'Despacho outbound iniciado pelo Core.',
+      payloadSummary: outboundPayload
+    })
+  );
+  await updateDoc(integrationEventRef, {
+    status: 'dispatched',
+    dispatchedAt: serverTimestamp()
+  });
+
+  try {
+    const response = await fetch(connection.endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Core-Project-Id': serviceRequest.projectId,
+        'X-Core-Service-Request-Id': serviceRequest.id,
+        ...(connection.authToken
+          ? {
+              Authorization: `Bearer ${connection.authToken}`
+            }
+          : {})
+      },
+      body: JSON.stringify(outboundPayload)
+    });
+    const responseSummary = await parseIntegrationResponse(response);
+
+    if (!response.ok) {
+      const failureMessage = `Falha ao integrar com o sistema externo: HTTP ${response.status}.`;
+
+      await writeIntegrationLog(
+        buildIntegrationLogWritePayload({
+          projectId: serviceRequest.projectId,
+          integrationEventId: integrationEventRef.id,
+          serviceRequestId: serviceRequest.id,
+          connectionId: connection.id,
+          status: 'error',
+          message: failureMessage,
+          httpStatus: response.status,
+          payloadSummary: outboundPayload,
+          responseSummary
+        })
+      );
+      await updateDoc(integrationEventRef, {
+        status: 'error',
+        lastError: failureMessage,
+        responseSummary,
+        completedAt: serverTimestamp()
+      });
+      await updateDoc(serviceRequestRef, {
+        status: 'erro_integracao',
+        lastIntegrationError: failureMessage
+      });
+
+      throw new ConfirmServiceRequestError('integration-dispatch-failed', failureMessage);
+    }
+
+    await writeIntegrationLog(
+      buildIntegrationLogWritePayload({
+        projectId: serviceRequest.projectId,
+        integrationEventId: integrationEventRef.id,
+        serviceRequestId: serviceRequest.id,
+        connectionId: connection.id,
+        status: 'success',
+        message: 'Integração outbound aceita pelo sistema externo.',
+        httpStatus: response.status,
+        payloadSummary: outboundPayload,
+        responseSummary
+      })
+    );
+    await updateDoc(integrationEventRef, {
+      status: 'success',
+      responseSummary,
+      lastError: '',
+      completedAt: serverTimestamp()
+    });
+    await updateDoc(serviceRequestRef, {
+      status: 'integrado',
+      integratedAt: serverTimestamp(),
+      lastIntegrationError: ''
+    });
+  } catch (err) {
+    if (err instanceof ConfirmServiceRequestError) {
+      throw err;
+    }
+
+    const message =
+      err instanceof Error
+        ? `Falha ao despachar integração outbound: ${err.message}`
+        : 'Falha desconhecida ao despachar integração outbound.';
+
+    await writeIntegrationLog(
+      buildIntegrationLogWritePayload({
+        projectId: serviceRequest.projectId,
+        integrationEventId: integrationEventRef.id,
+        serviceRequestId: serviceRequest.id,
+        connectionId: connection.id,
+        status: 'error',
+        message,
+        payloadSummary: outboundPayload,
+        responseSummary: {
+          error: 'network_or_runtime_failure'
+        }
+      })
+    );
+    await updateDoc(integrationEventRef, {
+      status: 'error',
+      lastError: message,
+      completedAt: serverTimestamp(),
+      responseSummary: {
+        error: 'network_or_runtime_failure'
+      }
+    });
+    await updateDoc(serviceRequestRef, {
+      status: 'erro_integracao',
+      lastIntegrationError: message
+    });
+
+    throw new ConfirmServiceRequestError('integration-dispatch-failed', message);
+  }
 }

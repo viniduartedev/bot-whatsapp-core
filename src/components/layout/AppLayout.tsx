@@ -3,9 +3,9 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
 export function AppLayout() {
-  // O painel evolui aqui para um Ops Center do core, pensado para operar
-  // múltiplos bots e projetos no futuro. Login e autenticação entram na
-  // próxima fase; por agora priorizamos observabilidade e operação.
+  // O painel agora opera explicitamente por contexto de projeto. `Project` é a
+  // raiz do tenant operacional do Core e a UI inteira reflete esse escopo,
+  // mesmo antes da entrada de auth + autorização forte.
   return (
     <div className="ops-shell">
       <Sidebar />

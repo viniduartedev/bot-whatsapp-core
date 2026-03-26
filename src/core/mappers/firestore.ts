@@ -25,6 +25,17 @@ export function readOptionalUnknown(data: DocumentData, field: string): unknown 
   return data[field] === undefined ? undefined : data[field];
 }
 
+export function readStringArray(data: DocumentData, field: string): string[] | undefined {
+  const value = data[field];
+
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const items = value.filter((item): item is string => typeof item === 'string');
+  return items.length === 0 ? undefined : items;
+}
+
 function isAllowedValue<T extends string>(value: unknown, allowed: readonly T[]): value is T {
   return typeof value === 'string' && allowed.includes(value as T);
 }

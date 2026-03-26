@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { FIRESTORE_COLLECTIONS } from '../src/core/constants/firestoreCollections';
 import { buildAppointmentIdFromRequestId } from '../src/core/constants/identifiers';
 
-type FirestoreSeedValue = string | number | boolean | null | FirestoreSeedPayload;
+type FirestoreSeedPrimitive = string | number | boolean | null;
+type FirestoreSeedValue = FirestoreSeedPrimitive | FirestoreSeedPayload | FirestoreSeedValue[];
 type FirestoreSeedPayload = Record<string, FirestoreSeedValue>;
 
 interface SeedDocument {
@@ -20,8 +21,11 @@ if (!projectId) {
 }
 
 const now = new Date().toISOString();
+const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+const fortyMinutesAgo = new Date(Date.now() - 40 * 60 * 1000).toISOString();
 const demoProjectId = 'core-project-clinica-demo';
 const secondaryProjectId = 'core-project-estudio-demo';
+
 const demoContacts = [
   {
     id: 'core-contact-ana-lima',
@@ -47,7 +51,17 @@ const demoContacts = [
     channel: 'whatsapp',
     phone: '+5511999990003',
     name: 'Carla Rocha',
-    createdAt: now
+    createdAt: now,
+    lastInteractionAt: '2026-03-25T13:40:00.000Z'
+  },
+  {
+    id: 'core-contact-diego-souza',
+    projectId: demoProjectId,
+    channel: 'whatsapp',
+    phone: '+5511999990004',
+    name: 'Diego Souza',
+    createdAt: now,
+    lastInteractionAt: '2026-03-25T15:10:00.000Z'
   }
 ] as const;
 
@@ -85,7 +99,26 @@ const demoServiceRequests = [
     source: 'painel_seed',
     requestedDate: '2026-04-04',
     requestedTime: '15:00',
-    status: 'confirmado',
+    status: 'integrado',
+    confirmedAt: oneHourAgo,
+    integratedAt: fortyMinutesAgo,
+    lastIntegrationEventId: 'core-integration-event-carla',
+    lastIntegrationError: '',
+    createdAt: now
+  },
+  {
+    id: 'core-service-request-diego',
+    projectId: demoProjectId,
+    contactId: demoContacts[3].id,
+    type: 'appointment',
+    channel: 'whatsapp',
+    source: 'painel_seed',
+    requestedDate: '2026-04-05',
+    requestedTime: '16:15',
+    status: 'erro_integracao',
+    confirmedAt: '2026-03-25T15:20:00.000Z',
+    lastIntegrationEventId: 'core-integration-event-diego',
+    lastIntegrationError: 'Falha ao integrar com o sistema externo: HTTP 504.',
     createdAt: now
   }
 ] as const;
@@ -149,21 +182,161 @@ const demoProjectConnections = [
     id: 'core-project-connection-scheduling-dev',
     projectId: demoProjectId,
     connectionType: 'scheduling',
-    provider: 'firebase',
+    provider: 'http',
     status: 'active',
     targetProjectId: 'agendamentos-ai-dev',
     environment: 'dev',
+    endpointUrl: 'https://agendamentos-ai.example.com/api/core/service-requests',
+    authToken: 'dev-token-placeholder',
+    direction: 'outbound',
+    acceptedEventTypes: ['appointment'],
+    retryPolicy: {
+      maxAttempts: 3,
+      backoffSeconds: 30
+    },
     createdAt: now
   },
   {
     id: 'core-project-connection-scheduling-prod',
     projectId: demoProjectId,
     connectionType: 'scheduling',
-    provider: 'firebase',
+    provider: 'http',
     status: 'inactive',
     targetProjectId: 'agendamentos-ai-prod',
     environment: 'prod',
+    endpointUrl: 'https://agendamentos-ai.example.com/api/core/service-requests',
+    authToken: 'prod-token-placeholder',
+    direction: 'outbound',
+    acceptedEventTypes: ['appointment'],
+    retryPolicy: {
+      maxAttempts: 3,
+      backoffSeconds: 60
+    },
     createdAt: now
+  }
+] as const;
+
+const demoIntegrationEvents = [
+  {
+    id: 'core-integration-event-carla',
+    projectId: demoProjectId,
+    serviceRequestId: demoServiceRequests[2].id,
+    connectionId: demoProjectConnections[0].id,
+    contactId: demoContacts[2].id,
+    eventType: 'service_request_confirmation',
+    direction: 'outbound',
+    provider: 'http',
+    targetProjectId: demoProjectConnections[0].targetProjectId,
+    endpointUrl: demoProjectConnections[0].endpointUrl,
+    status: 'success',
+    requestSummary: {
+      serviceRequestId: demoServiceRequests[2].id,
+      requestedDate: demoServiceRequests[2].requestedDate,
+      requestedTime: demoServiceRequests[2].requestedTime
+    },
+    responseSummary: {
+      status: 202,
+      body: {
+        accepted: true,
+        externalReference: 'aga-apt-0001'
+      }
+    },
+    dispatchedAt: oneHourAgo,
+    completedAt: fortyMinutesAgo,
+    createdAt: oneHourAgo
+  },
+  {
+    id: 'core-integration-event-diego',
+    projectId: demoProjectId,
+    serviceRequestId: demoServiceRequests[3].id,
+    connectionId: demoProjectConnections[0].id,
+    contactId: demoContacts[3].id,
+    eventType: 'service_request_confirmation',
+    direction: 'outbound',
+    provider: 'http',
+    targetProjectId: demoProjectConnections[0].targetProjectId,
+    endpointUrl: demoProjectConnections[0].endpointUrl,
+    status: 'error',
+    requestSummary: {
+      serviceRequestId: demoServiceRequests[3].id,
+      requestedDate: demoServiceRequests[3].requestedDate,
+      requestedTime: demoServiceRequests[3].requestedTime
+    },
+    responseSummary: {
+      status: 504,
+      body: {
+        accepted: false,
+        code: 'UPSTREAM_TIMEOUT'
+      }
+    },
+    lastError: 'Falha ao integrar com o sistema externo: HTTP 504.',
+    dispatchedAt: '2026-03-25T15:20:00.000Z',
+    completedAt: '2026-03-25T15:21:00.000Z',
+    createdAt: '2026-03-25T15:20:00.000Z'
+  }
+] as const;
+
+const demoIntegrationLogs = [
+  {
+    id: 'core-integration-log-carla-attempt',
+    projectId: demoProjectId,
+    integrationEventId: demoIntegrationEvents[0].id,
+    serviceRequestId: demoServiceRequests[2].id,
+    connectionId: demoProjectConnections[0].id,
+    status: 'attempt',
+    attemptNumber: 1,
+    message: 'Despacho outbound iniciado pelo Core.',
+    payloadSummary: {
+      targetProjectId: demoProjectConnections[0].targetProjectId,
+      serviceRequestId: demoServiceRequests[2].id
+    },
+    createdAt: oneHourAgo
+  },
+  {
+    id: 'core-integration-log-carla-success',
+    projectId: demoProjectId,
+    integrationEventId: demoIntegrationEvents[0].id,
+    serviceRequestId: demoServiceRequests[2].id,
+    connectionId: demoProjectConnections[0].id,
+    status: 'success',
+    attemptNumber: 1,
+    message: 'Integração outbound aceita pelo sistema externo.',
+    httpStatus: 202,
+    responseSummary: {
+      accepted: true,
+      externalReference: 'aga-apt-0001'
+    },
+    createdAt: fortyMinutesAgo
+  },
+  {
+    id: 'core-integration-log-diego-attempt',
+    projectId: demoProjectId,
+    integrationEventId: demoIntegrationEvents[1].id,
+    serviceRequestId: demoServiceRequests[3].id,
+    connectionId: demoProjectConnections[0].id,
+    status: 'attempt',
+    attemptNumber: 1,
+    message: 'Despacho outbound iniciado pelo Core.',
+    payloadSummary: {
+      targetProjectId: demoProjectConnections[0].targetProjectId,
+      serviceRequestId: demoServiceRequests[3].id
+    },
+    createdAt: '2026-03-25T15:20:00.000Z'
+  },
+  {
+    id: 'core-integration-log-diego-error',
+    projectId: demoProjectId,
+    integrationEventId: demoIntegrationEvents[1].id,
+    serviceRequestId: demoServiceRequests[3].id,
+    connectionId: demoProjectConnections[0].id,
+    status: 'error',
+    attemptNumber: 1,
+    message: 'Falha ao integrar com o sistema externo: HTTP 504.',
+    httpStatus: 504,
+    responseSummary: {
+      code: 'UPSTREAM_TIMEOUT'
+    },
+    createdAt: '2026-03-25T15:21:00.000Z'
   }
 ] as const;
 
@@ -208,6 +381,16 @@ const seedDocuments: SeedDocument[] = [
     id: connection.id,
     data: { ...connection }
   })),
+  ...demoIntegrationEvents.map((event) => ({
+    collection: FIRESTORE_COLLECTIONS.integrationEvents,
+    id: event.id,
+    data: { ...event }
+  })),
+  ...demoIntegrationLogs.map((log) => ({
+    collection: FIRESTORE_COLLECTIONS.integrationLogs,
+    id: log.id,
+    data: { ...log }
+  })),
   {
     collection: FIRESTORE_COLLECTIONS.appointments,
     id: 'core-appointment-carla',
@@ -218,6 +401,10 @@ const seedDocuments: SeedDocument[] = [
       date: '2026-04-04',
       time: '15:00',
       status: 'confirmado',
+      sourceOfTruth: 'agendamentos-ai',
+      integrationEventId: demoIntegrationEvents[0].id,
+      externalReference: 'aga-apt-0001',
+      lastSyncedAt: fortyMinutesAgo,
       createdAt: now
     }
   }
@@ -248,6 +435,14 @@ function getAccessToken() {
 }
 
 function toFirestoreField(value: FirestoreSeedValue) {
+  if (Array.isArray(value)) {
+    return {
+      arrayValue: {
+        values: value.map((item) => toFirestoreField(item))
+      }
+    };
+  }
+
   if (typeof value === 'object' && value !== null) {
     return {
       mapValue: {
@@ -265,7 +460,9 @@ function toFirestoreField(value: FirestoreSeedValue) {
   }
 
   if (typeof value === 'number') {
-    return { integerValue: value.toString() };
+    return Number.isInteger(value)
+      ? { integerValue: value.toString() }
+      : { doubleValue: value };
   }
 
   return { stringValue: value };
@@ -328,11 +525,11 @@ async function main() {
   // então podemos reexecutar o script sem criar duplicações desnecessárias.
   const accessToken = getAccessToken();
 
-  // Quando uma solicitação de teste é confirmada pelo painel, um appointment é
-  // gerado automaticamente. Ao reexecutar o seed nós limpamos esses derivados
-  // para restaurar o cenário inicial de validação do core.
+  // O fluxo novo do Core não usa mais `appointments` como verdade autoritativa.
+  // Ainda removemos documentos derivados antigos para limpar cenários de teste de
+  // fases anteriores da base.
   const pendingRequestIds = demoServiceRequests
-    .filter((request) => request.status !== 'confirmado')
+    .filter((request) => request.status !== 'integrado')
     .map((request) => request.id);
 
   await Promise.all(
@@ -354,6 +551,8 @@ async function main() {
       FIRESTORE_COLLECTIONS.inboundEvents,
       FIRESTORE_COLLECTIONS.projectConnections,
       FIRESTORE_COLLECTIONS.serviceRequests,
+      FIRESTORE_COLLECTIONS.integrationEvents,
+      FIRESTORE_COLLECTIONS.integrationLogs,
       FIRESTORE_COLLECTIONS.appointments
     ].join(', ')}.`
   );

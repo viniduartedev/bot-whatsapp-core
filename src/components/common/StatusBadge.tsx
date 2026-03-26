@@ -1,6 +1,9 @@
 import type {
   AppointmentStatus,
   InboundEventStatus,
+  IntegrationEventStatus,
+  IntegrationLogStatus,
+  ProjectConnectionStatus,
   ProjectStatus,
   ServiceRequestStatus
 } from '../../core/constants/domain';
@@ -27,11 +30,13 @@ export function getServiceRequestTone(status: ServiceRequestStatus): StatusBadge
     case 'em_analise':
       return 'warning';
     case 'confirmado':
+      return 'warning';
+    case 'integrado':
       return 'success';
     case 'cancelado':
       return 'danger';
-    case 'convertido':
-      return 'neutral';
+    case 'erro_integracao':
+      return 'danger';
   }
 }
 
@@ -52,6 +57,34 @@ export function getAppointmentTone(status: AppointmentStatus): StatusBadgeTone {
 
 export function getProjectTone(status: ProjectStatus): StatusBadgeTone {
   return status === 'active' ? 'success' : 'neutral';
+}
+
+export function getProjectConnectionTone(status: ProjectConnectionStatus): StatusBadgeTone {
+  return status === 'active' ? 'success' : 'neutral';
+}
+
+export function getIntegrationEventTone(status: IntegrationEventStatus): StatusBadgeTone {
+  switch (status) {
+    case 'pending':
+      return 'warning';
+    case 'dispatched':
+      return 'info';
+    case 'success':
+      return 'success';
+    case 'error':
+      return 'danger';
+  }
+}
+
+export function getIntegrationLogTone(status: IntegrationLogStatus): StatusBadgeTone {
+  switch (status) {
+    case 'attempt':
+      return 'info';
+    case 'success':
+      return 'success';
+    case 'error':
+      return 'danger';
+  }
 }
 
 export function getHealthTone(

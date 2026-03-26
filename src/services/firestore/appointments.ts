@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   query,
@@ -10,12 +11,22 @@ import {
 } from 'firebase/firestore';
 import { APPOINTMENT_STATUSES } from '../../core/constants/domain';
 import { FIRESTORE_COLLECTIONS } from '../../core/constants/firestoreCollections';
-import { mapQuerySnapshot, readEnumValue, readString, readUnknown } from '../../core/mappers/firestore';
-import { buildAppointmentIdFromRequestId } from '../../core/constants/identifiers';
+import {
+  mapQuerySnapshot,
+  readEnumValue,
+  readOptionalUnknown,
+  readString,
+  readUnknown
+} from '../../core/mappers/firestore';
 import type { Appointment } from '../../core/entities';
 import { db } from '../../firebase/config';
 
 function mapAppointmentDocument(id: string, data: DocumentData): Appointment {
+  const sourceOfTruth = readString(data, 'sourceOfTruth');
+  const integrationEventId = readString(data, 'integrationEventId');
+  const externalReference = readString(data, 'externalReference');
+  const lastSyncedAt = readOptionalUnknown(data, 'lastSyncedAt');
+
   return {
     id,
     projectId: readString(data, 'projectId'),
@@ -24,6 +35,10 @@ function mapAppointmentDocument(id: string, data: DocumentData): Appointment {
     date: readString(data, 'date'),
     time: readString(data, 'time'),
     status: readEnumValue(data, 'status', APPOINTMENT_STATUSES, 'confirmado'),
+    ...(sourceOfTruth ? { sourceOfTruth } : {}),
+    ...(integrationEventId ? { integrationEventId } : {}),
+    ...(externalReference ? { externalReference } : {}),
+    ...(lastSyncedAt !== undefined ? { lastSyncedAt } : {}),
     createdAt: readUnknown(data, 'createdAt')
   };
 }
@@ -42,12 +57,11 @@ export function getAppointmentDocumentRef(appointmentId: string) {
   return doc(db, FIRESTORE_COLLECTIONS.appointments, appointmentId);
 }
 
-export function getGeneratedAppointmentDocumentRef(requestId: string) {
-  return getAppointmentDocumentRef(buildAppointmentIdFromRequestId(requestId));
-}
-
-export async function getAppointments(): Promise<Appointment[]> {
-  const snapshot = await getDocs(collection(db, FIRESTORE_COLLECTIONS.appointments));
+export async function getAppointments(projectId?: string): Promise<Appointment[]> {
+  const baseCollection = collection(db, FIRESTORE_COLLECTIONS.appointments);
+  const snapshot = projectId
+    ? await getDocs(query(baseCollection, where('projectId', '==', projectId)))
+    : await getDocs(baseCollection);
 
   return mapQuerySnapshot(snapshot, ({ id, data }) => mapAppointmentDocument(id, data)).sort(
     (left, right) => {
@@ -72,4 +86,9 @@ export async function getAppointmentByRequestId(requestId: string): Promise<Appo
   }
 
   return mapAppointmentDocument(appointmentSnapshot.id, appointmentSnapshot.data());
+}
+
+export async function getAppointmentById(appointmentId: string): Promise<Appointment | null> {
+  const snapshot = await getDoc(getAppointmentDocumentRef(appointmentId));
+  return mapAppointmentSnapshot(snapshot);
 }

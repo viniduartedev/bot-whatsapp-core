@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { DataTable, type DataTableColumn } from '../components/common/DataTable';
 import { EmptyState } from '../components/common/EmptyState';
 import { SectionCard } from '../components/common/SectionCard';
@@ -9,12 +10,17 @@ import { MetricCard } from '../components/dashboard/MetricCard';
 import { PageHeader } from '../components/layout/PageHeader';
 import { formatUnknownDateTime, summarizeUnknownValue } from '../core/mappers/display';
 import type { InboundEvent } from '../core/entities';
+import { useProjectContext } from '../context/ProjectContext';
 import { useCollectionQuery } from '../hooks/useCollectionQuery';
 import { getInboundEvents } from '../services/firestore/inboundEvents';
 
 export function EventsPage() {
+  const { activeProject, activeProjectId } = useProjectContext();
   const { data: events, loading, error, refetch } = useCollectionQuery(
-    getInboundEvents,
+    useCallback(
+      () => (activeProjectId ? getInboundEvents(activeProjectId) : Promise.resolve([])),
+      [activeProjectId]
+    ),
     'Erro ao carregar eventos.'
   );
 
@@ -46,11 +52,6 @@ export function EventsPage() {
       cell: (event) => event.phone || '-'
     },
     {
-      id: 'projectId',
-      header: 'Project',
-      cell: (event) => event.projectId || '-'
-    },
-    {
       id: 'metadata',
       header: 'Metadata',
       cell: (event) => (
@@ -63,8 +64,12 @@ export function EventsPage() {
     <section className="page-section">
       <PageHeader
         eyebrow="Observabilidade"
-        title="Stream de eventos"
-        description="Visão técnica do tráfego recebido do bot e do integrador, pronta para crescer como um painel de observabilidade."
+        title="Inbound Events"
+        description={
+          activeProject
+            ? `Stream técnico de entrada do projeto ${activeProject.slug}, com foco em observabilidade e troubleshooting por tenant.`
+            : 'Selecione um projeto para acompanhar os eventos inbound do Core.'
+        }
         actions={
           <button type="button" onClick={() => void refetch()}>
             Atualizar stream
@@ -76,7 +81,19 @@ export function EventsPage() {
 
       {!loading && error && <p className="state error">Erro ao carregar dados: {error}</p>}
 
-      {!loading && !error && (
+      {!loading && !error && !activeProject && (
+        <SectionCard
+          title="Projeto obrigatório"
+          description="Inbound events precisam ser lidos dentro do projeto correto."
+        >
+          <EmptyState
+            title="Selecione um projeto"
+            description="Use o seletor do topo para visualizar o stream inbound do tenant ativo."
+          />
+        </SectionCard>
+      )}
+
+      {!loading && !error && activeProject && (
         <>
           <div className="metric-grid metric-grid--compact">
             <MetricCard
@@ -98,7 +115,7 @@ export function EventsPage() {
               tone="danger"
             />
             <MetricCard
-              label="Last event"
+              label="Last inbound"
               value={lastEvent ? 1 : 0}
               description={lastEvent ? formatUnknownDateTime(lastEvent.createdAt) : 'Sem tráfego recente'}
               tone="neutral"
@@ -107,7 +124,7 @@ export function EventsPage() {
 
           <SectionCard
             title="Inbound Events"
-            description="Eventos recentes do ecossistema com foco em leitura rápida e troubleshooting."
+            description="Eventos de entrada do projeto ativo com foco em leitura rápida e troubleshooting."
           >
             {events.length === 0 ? (
               <EmptyState

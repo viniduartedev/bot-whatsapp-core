@@ -4,40 +4,52 @@ import { StatusBadge, getHealthTone } from '../common/StatusBadge';
 
 interface HealthStatusCardProps {
   botStatus: 'online' | 'attention';
+  integrationStatus: 'operational' | 'attention';
   coreStatus: 'operational' | 'attention';
-  lastEventAt: unknown | null;
-  lastEventType: string | null;
+  lastInboundEventAt: unknown | null;
+  lastInboundEventType: string | null;
+  lastIntegrationAt: unknown | null;
   message: string;
 }
 
 export function HealthStatusCard({
   botStatus,
+  integrationStatus,
   coreStatus,
-  lastEventAt,
-  lastEventType,
+  lastInboundEventAt,
+  lastInboundEventType,
+  lastIntegrationAt,
   message
 }: HealthStatusCardProps) {
   return (
     <SectionCard
       title="Health / Status"
-      description="Leitura operacional simples para bot, integrador e fluxo do core."
+      description="Leitura operacional do projeto ativo para bot, integração outbound e camada orquestradora."
     >
       <div className="health-list">
         <div className="health-item">
-          <span>Bot / Integrador</span>
+          <span>Bot / Entrada</span>
           <StatusBadge label={botStatus} tone={getHealthTone(botStatus)} />
+        </div>
+        <div className="health-item">
+          <span>Integração outbound</span>
+          <StatusBadge label={integrationStatus} tone={getHealthTone(integrationStatus)} />
         </div>
         <div className="health-item">
           <span>Core</span>
           <StatusBadge label={coreStatus} tone={getHealthTone(coreStatus)} />
         </div>
         <div className="health-item">
-          <span>Último evento</span>
-          <strong>{formatUnknownDateTime(lastEventAt)}</strong>
+          <span>Último inbound</span>
+          <strong>{formatUnknownDateTime(lastInboundEventAt)}</strong>
         </div>
         <div className="health-item">
-          <span>Tipo</span>
-          <strong>{lastEventType || '-'}</strong>
+          <span>Tipo inbound</span>
+          <strong>{lastInboundEventType || '-'}</strong>
+        </div>
+        <div className="health-item">
+          <span>Última integração</span>
+          <strong>{formatUnknownDateTime(lastIntegrationAt)}</strong>
         </div>
       </div>
       <p className="section-card__message">{message}</p>

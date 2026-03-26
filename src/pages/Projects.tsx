@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type DataTableColumn } from '../components/common/DataTable';
 import { EmptyState } from '../components/common/EmptyState';
@@ -5,27 +6,58 @@ import { SectionCard } from '../components/common/SectionCard';
 import { StatusBadge, getProjectTone } from '../components/common/StatusBadge';
 import { PageHeader } from '../components/layout/PageHeader';
 import type { Project } from '../core/entities';
+import { useProjectContext } from '../context/ProjectContext';
 import { useCollectionQuery } from '../hooks/useCollectionQuery';
 import { getProjectConnections } from '../services/firestore/projectConnections';
-import { getProjects } from '../services/firestore/projects';
+import { createProject } from '../services/firestore/projects';
+
+interface ActionFeedback {
+  tone: 'success' | 'error';
+  message: string;
+}
+
+interface ProjectFormState {
+  name: string;
+  slug: string;
+  status: Project['status'];
+}
+
+const DEFAULT_FORM_STATE: ProjectFormState = {
+  name: '',
+  slug: '',
+  status: 'active'
+};
+
+function toProjectSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 
 export function ProjectsPage() {
   const navigate = useNavigate();
   const {
-    data: projects,
+    projects,
+    activeProjectId,
     loading: projectsLoading,
     error: projectsError,
-    refetch: refetchProjects
-  } = useCollectionQuery(
-    getProjects,
-    'Erro ao carregar projetos.'
-  );
+    refetchProjects,
+    setActiveProjectId
+  } = useProjectContext();
   const {
     data: projectConnections,
     loading: connectionsLoading,
     error: connectionsError,
     refetch: refetchConnections
   } = useCollectionQuery(getProjectConnections, 'Erro ao carregar conexões de projeto.');
+  const [formState, setFormState] = useState<ProjectFormState>(DEFAULT_FORM_STATE);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<ActionFeedback | null>(null);
   const loading = projectsLoading || connectionsLoading;
   const error = projectsError ?? connectionsError;
 
@@ -38,7 +70,12 @@ export function ProjectsPage() {
     {
       id: 'name',
       header: 'Nome',
-      cell: (project) => project.name || 'Projeto sem nome'
+      cell: (project) => (
+        <div>
+          <strong>{project.name || 'Projeto sem nome'}</strong>
+          {project.id === activeProjectId && <p className="table-note">Projeto ativo no painel</p>}
+        </div>
+      )
     },
     {
       id: 'slug',
@@ -61,7 +98,16 @@ export function ProjectsPage() {
       id: 'actions',
       header: 'Ações',
       cell: (project) => (
-        <div className="table-actions">
+        <div className="table-actions table-actions--stacked">
+          {project.id !== activeProjectId && (
+            <button
+              type="button"
+              className="button-inline"
+              onClick={() => setActiveProjectId(project.id)}
+            >
+              Ativar contexto
+            </button>
+          )}
           <button
             type="button"
             className="button-inline"
@@ -74,38 +120,151 @@ export function ProjectsPage() {
     }
   ];
 
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFeedback(null);
+
+    const name = formState.name.trim();
+    const slug = toProjectSlug(formState.slug);
+
+    if (!name || !slug) {
+      setFeedback({
+        tone: 'error',
+        message: 'Informe nome e slug válidos para criar o projeto.'
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const projectId = await createProject({
+        name,
+        slug,
+        status: formState.status
+      });
+      await refetchProjects();
+      setActiveProjectId(projectId);
+      setFeedback({
+        tone: 'success',
+        message: 'Projeto criado com sucesso. Ele agora pode receber contacts, serviceRequests e projectConnections.'
+      });
+      setFormState(DEFAULT_FORM_STATE);
+      setIsFormOpen(false);
+    } catch (submitError) {
+      const message =
+        submitError instanceof Error ? submitError.message : 'Não foi possível criar o projeto.';
+      setFeedback({
+        tone: 'error',
+        message
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow="Orquestração multi-projeto"
+        eyebrow="Raiz multi-tenant"
         title="Projetos"
-        description="Projetos agora funcionam como unidades orquestradas do core, prontas para receber conexões externas com outros sistemas."
+        description="`Project` agora é a entidade raiz do Core. Primeiro criamos o tenant operacional; depois configuramos as conexões e operamos tudo por `projectId`."
         actions={
-          <button
-            type="button"
-            onClick={() => {
-              void refetchProjects();
-              void refetchConnections();
-            }}
-          >
-            Atualizar projetos
-          </button>
+          <div className="page-header__actions">
+            <button type="button" onClick={() => setIsFormOpen((current) => !current)}>
+              {isFormOpen ? 'Fechar formulário' : 'Novo Projeto'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void refetchProjects();
+                void refetchConnections();
+              }}
+            >
+              Atualizar projetos
+            </button>
+          </div>
         }
       />
+
+      {feedback && (
+        <p className={feedback.tone === 'success' ? 'state success' : 'state error'}>
+          {feedback.message}
+        </p>
+      )}
 
       {loading && <p className="state">Carregando projetos...</p>}
 
       {!loading && error && <p className="state error">Erro ao carregar dados: {error}</p>}
 
+      {!loading && !error && isFormOpen && (
+        <SectionCard
+          title="Novo projeto"
+          description="Cada projeto representa um tenant/contexto operacional do Core. Todas as leituras e integrações futuras ficam subordinadas a ele."
+        >
+          <form className="form-grid" onSubmit={handleSubmit}>
+            <label className="form-field">
+              <span>Nome</span>
+              <input
+                value={formState.name}
+                onChange={(event) =>
+                  setFormState((current) => ({
+                    ...current,
+                    name: event.target.value,
+                    slug: current.slug ? current.slug : toProjectSlug(event.target.value)
+                  }))
+                }
+                placeholder="Clínica Central"
+              />
+            </label>
+
+            <label className="form-field">
+              <span>Slug</span>
+              <input
+                value={formState.slug}
+                onChange={(event) =>
+                  setFormState((current) => ({
+                    ...current,
+                    slug: toProjectSlug(event.target.value)
+                  }))
+                }
+                placeholder="clinica-central"
+              />
+            </label>
+
+            <label className="form-field">
+              <span>Status</span>
+              <select
+                value={formState.status}
+                onChange={(event) =>
+                  setFormState((current) => ({
+                    ...current,
+                    status: event.target.value as Project['status']
+                  }))
+                }
+              >
+                <option value="active">active</option>
+                <option value="inactive">inactive</option>
+              </select>
+            </label>
+
+            <div className="form-actions">
+              <button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Salvando...' : 'Salvar projeto'}
+              </button>
+            </div>
+          </form>
+        </SectionCard>
+      )}
+
       {!loading && !error && (
         <SectionCard
           title="Projects registry"
-          description="Inventário atual do orquestrador com visibilidade da quantidade de integrações externas por projeto."
+          description="Inventário multi-tenant do Core com visibilidade da quantidade de integrações externas por projeto."
         >
           {projects.length === 0 ? (
             <EmptyState
               title="Nenhum projeto encontrado"
-              description="Os projetos aparecerão aqui conforme o core for sendo configurado."
+              description="Crie o primeiro projeto para definir a raiz do contexto operacional do Core."
             />
           ) : (
             <DataTable
