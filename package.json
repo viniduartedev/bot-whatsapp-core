@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "seed:appointments": "node --env-file=.env scripts/seed-appointment-requests.mjs",
-    "seed:core": "node --env-file=.env --import tsx scripts/seed-core.ts"
+    "seed:core": "node --env-file=.env --import tsx scripts/seed-core.ts",
+    "seed:bot-whatsapp-ai": "node --import tsx scripts/seed-bot-whatsapp-ai.ts",
+    "deploy:bot-whatsapp-ai:rules": "firebase deploy --only firestore:rules --project bot-whatsapp-ai-d10ef --config firebase.bot-whatsapp-ai.json"
   },
   "dependencies": {
     "firebase": "^11.10.0",

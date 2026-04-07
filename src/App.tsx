@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { ProjectProvider } from './context/ProjectContext';
 import { AppointmentsPage } from './pages/Appointments';
+import { BotSettingsPage } from './pages/BotSettings';
 import { ContactsPage } from './pages/Contacts';
 import { Dashboard } from './pages/Dashboard';
 import { EventsPage } from './pages/Events';
@@ -23,6 +24,7 @@ function App() {
             <Route path="events" element={<EventsPage />} />
             <Route path="integrations" element={<IntegrationsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
+            <Route path="bot-settings" element={<BotSettingsPage />} />
             <Route path="project-connections" element={<ProjectConnectionsPage />} />
             <Route path="contacts" element={<ContactsPage />} />
             <Route path="service-requests" element={<ServiceRequestsPage />} />

@@ -1,6 +1,27 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0;
+    }
+
+    function hasValidAppointmentService(service) {
+      return service is map &&
+        isNonEmptyString(service.key) &&
+        isNonEmptyString(service.label);
+    }
+
+    function hasValidAppointmentPayload(data) {
+      return isNonEmptyString(data.projectId) &&
+        isNonEmptyString(data.requestId) &&
+        isNonEmptyString(data.contactId) &&
+        isNonEmptyString(data.tenantSlug) &&
+        isNonEmptyString(data.date) &&
+        isNonEmptyString(data.time) &&
+        isNonEmptyString(data.status) &&
+        hasValidAppointmentService(data.service);
+    }
+
     // Etapa atual do Core:
     // ainda estamos sem autenticação e autorização por tenant, então as regras
     // seguem abertas para desenvolvimento. Mesmo assim, reduzimos a superfície de
@@ -11,6 +32,12 @@ service cloud.firestore {
     // escrita públicas.
     match /projects/{projectId} {
       allow read, create: if true;
+    }
+
+    // `botProfiles` guarda a configuração conversacional principal por projeto.
+    // Nesta etapa o painel precisa ler e fazer upsert do documento do tenant.
+    match /botProfiles/{projectId} {
+      allow read, create, update: if true;
     }
 
     match /contacts/{contactId} {
@@ -43,8 +70,11 @@ service cloud.firestore {
 
     match /appointments/{appointmentId} {
       // `appointments` agora é apenas um espelho operacional local opcional.
-      // O Core não assume mais a verdade autoritativa do agendamento.
+      // O Core não assume mais a verdade autoritativa do agendamento, mas
+      // quando materializa um mirror local ele precisa preservar o tenant e o
+      // serviço de origem para leituras posteriores consistentes.
       allow read: if true;
+      allow create, update: if hasValidAppointmentPayload(request.resource.data);
     }
 
     // Coleção legada mantida durante a migração gradual.

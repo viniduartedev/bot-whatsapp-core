@@ -34,6 +34,12 @@ export const opsNavigation: NavigationItem[] = [
   { to: '/contacts', label: 'Contacts', code: 'CT', description: 'Relacionamento operacional' },
   { to: '/projects', label: 'Projects', code: 'PR', description: 'Projetos e escopo do core' },
   {
+    to: '/bot-settings',
+    label: 'Bot Settings',
+    code: 'BT',
+    description: 'Perfil conversacional por projeto'
+  },
+  {
     to: '/project-connections',
     label: 'Connections',
     code: 'PC',
@@ -83,6 +89,11 @@ const pageMetaMap: Record<string, PageMeta> = {
     title: 'Projects',
     subtitle: 'Projects como raiz do contexto multi-tenant e ponto de partida para conexões.',
     kicker: 'Core scope'
+  },
+  '/bot-settings': {
+    title: 'Bot Settings',
+    subtitle: 'Configuração principal do bot por projeto com identidade, mensagens, menu e preview pronto para operação.',
+    kicker: 'Conversational config'
   },
   '/project-connections': {
     title: 'Project Connections',

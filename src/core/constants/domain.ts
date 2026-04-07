@@ -25,6 +25,9 @@ export type ProjectConnectionDirection = (typeof PROJECT_CONNECTION_DIRECTIONS)[
 export const PROJECT_CONNECTION_STATUSES = ['active', 'inactive'] as const;
 export type ProjectConnectionStatus = (typeof PROJECT_CONNECTION_STATUSES)[number];
 
+export const BOT_PROFILE_TONES = ['professional', 'friendly', 'neutral'] as const;
+export type BotProfileTone = (typeof BOT_PROFILE_TONES)[number];
+
 export const CORE_CHANNELS = ['whatsapp'] as const;
 export type CoreChannel = (typeof CORE_CHANNELS)[number];
 

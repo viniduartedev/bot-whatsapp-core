@@ -1,0 +1,130 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasRole(allowedRoles) {
+      return isSignedIn() && request.auth.token.role in allowedRoles;
+    }
+
+    function isAdminWriter() {
+      return hasRole(['admin', 'operator']);
+    }
+
+    function isBotCoreWriter() {
+      return isSignedIn() &&
+        (
+          request.auth.token.botCore == true ||
+          request.auth.token.serviceRole == 'bot-core'
+        );
+    }
+
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0;
+    }
+
+    function hasTenantScope(data) {
+      return isNonEmptyString(data.tenantSlug) || isNonEmptyString(data.tenantId);
+    }
+
+    function hasProjectTenantScope(data) {
+      return isNonEmptyString(data.projectId) && hasTenantScope(data);
+    }
+
+    function isPilotDevScope(data) {
+      return data.tenantSlug == 'clinica-devtec' ||
+        data.tenantId == 'clinica-devtec' ||
+        data.slug == 'clinica-devtec' ||
+        data.projectId == 'core-project-clinica-devtec';
+    }
+
+    function canPilotDevWrite(data) {
+      return isPilotDevScope(data);
+    }
+
+    // Regras iniciais da base bot-whatsapp-ai:
+    // - Leitura publica temporaria para homologacao do piloto sem Auth.
+    // - Escrita runtime fica reservada ao bot/core via token com claim tecnica
+    //   ou limitada ao escopo clinica-devtec enquanto Auth nao entra no painel.
+    // - Delete segue bloqueado.
+    // - Proxima etapa: remover canPilotDevWrite/canPilotDevRead e exigir Auth
+    //   + custom claims por tenant.
+    match /tenants/{tenantId} {
+      allow read: if true;
+      allow create, update: if (isAdminWriter() || isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && isNonEmptyString(request.resource.data.slug);
+      allow delete: if false;
+    }
+
+    match /projects/{projectId} {
+      allow read: if true;
+      allow create, update: if (isAdminWriter() || isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && isNonEmptyString(request.resource.data.slug);
+      allow delete: if false;
+    }
+
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create, update: if (isAdminWriter() || isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /botProfiles/{projectId} {
+      allow read: if true;
+      allow create, update: if (isAdminWriter() || isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && request.resource.data.projectId == projectId;
+      allow delete: if false;
+    }
+
+    match /projectConnections/{connectionId} {
+      allow read: if true;
+      allow create, update: if (isAdminWriter() || isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if true;
+      allow create, update: if (isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /contacts/{contactId} {
+      allow read: if true;
+      allow create, update: if (isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /serviceRequests/{serviceRequestId} {
+      allow read: if true;
+      allow create, update: if (isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /inboundEvents/{eventId} {
+      allow read: if true;
+      allow create, update: if (isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /outboundEvents/{eventId} {
+      allow read: if true;
+      allow create, update: if (isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /integrationEvents/{integrationEventId} {
+      allow read: if true;
+      allow create, update: if (isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /integrationLogs/{integrationLogId} {
+      allow read: if true;
+      allow create: if (isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

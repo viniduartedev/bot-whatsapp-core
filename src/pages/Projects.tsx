@@ -111,6 +111,13 @@ export function ProjectsPage() {
           <button
             type="button"
             className="button-inline"
+            onClick={() => navigate(`/bot-settings?projectId=${project.id}`)}
+          >
+            Configurar Bot
+          </button>
+          <button
+            type="button"
+            className="button-inline"
             onClick={() => navigate(`/project-connections?projectId=${project.id}`)}
           >
             Ver conexões

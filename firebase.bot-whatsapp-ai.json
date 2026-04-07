@@ -1,0 +1,5 @@
+{
+  "firestore": {
+    "rules": "firestore.bot-whatsapp-ai.rules"
+  }
+}

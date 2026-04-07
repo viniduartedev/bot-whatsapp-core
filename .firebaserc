@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "agendamento-ai-9fbfb"
+    "default": "agendamento-ai-9fbfb",
+    "bot-whatsapp-ai": "bot-whatsapp-ai-d10ef"
   }
 }

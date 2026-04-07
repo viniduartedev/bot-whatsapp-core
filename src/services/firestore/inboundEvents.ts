@@ -4,7 +4,7 @@ import { FIRESTORE_COLLECTIONS } from '../../core/constants/firestoreCollections
 import { toDateFromUnknown } from '../../core/mappers/display';
 import { mapQuerySnapshot, readEnumValue, readOptionalUnknown, readString, readUnknown } from '../../core/mappers/firestore';
 import type { InboundEvent } from '../../core/entities';
-import { db } from '../../firebase/config';
+import { botDb } from '../../firebase/config';
 
 function mapInboundEventDocument(id: string, data: Record<string, unknown>): InboundEvent {
   const metadata = readOptionalUnknown(data, 'metadata');
@@ -29,7 +29,7 @@ function sortByCreatedAtDescending<T extends { createdAt: unknown }>(items: T[])
 }
 
 export async function getInboundEvents(projectId?: string): Promise<InboundEvent[]> {
-  const baseCollection = collection(db, FIRESTORE_COLLECTIONS.inboundEvents);
+  const baseCollection = collection(botDb, FIRESTORE_COLLECTIONS.inboundEvents);
   const snapshot = projectId
     ? await getDocs(query(baseCollection, where('projectId', '==', projectId)))
     : await getDocs(baseCollection);

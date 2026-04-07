@@ -39,6 +39,17 @@ const columns: DataTableColumn<Appointment>[] = [
     cell: (appointment) => appointment.requestId
   },
   {
+    id: 'tenantSlug',
+    header: 'Tenant',
+    cell: (appointment) => appointment.tenantSlug || '-'
+  },
+  {
+    id: 'service',
+    header: 'Serviço',
+    cell: (appointment) =>
+      appointment.service ? `${appointment.service.label} (${appointment.service.key})` : '-'
+  },
+  {
     id: 'sourceOfTruth',
     header: 'Fonte de verdade',
     cell: (appointment) => appointment.sourceOfTruth || 'agendamentos-ai'
@@ -61,11 +72,17 @@ const columns: DataTableColumn<Appointment>[] = [
 ];
 
 export function AppointmentsPage() {
-  const { activeProject, activeProjectId } = useProjectContext();
+  const { activeProject } = useProjectContext();
+  const activeTenantSlug = activeProject?.tenantSlug ?? activeProject?.slug ?? '';
   const { data: appointments, loading, error, refetch } = useCollectionQuery(
     useCallback(
-      () => (activeProjectId ? getAppointments(activeProjectId) : Promise.resolve([])),
-      [activeProjectId]
+      () =>
+        activeTenantSlug
+          ? getAppointments({
+              tenantSlug: activeTenantSlug
+            })
+          : Promise.resolve([]),
+      [activeTenantSlug]
     ),
     'Erro ao carregar agendamentos.'
   );
@@ -73,11 +90,11 @@ export function AppointmentsPage() {
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow="Espelho local"
-        title="Appointment Mirrors"
+        eyebrow="Agenda operacional"
+        title="Appointments"
         description={
           activeProject
-            ? `Espelhos locais do projeto ${activeProject.slug}. O Core pode exibir reflexos operacionais, mas a fonte de verdade continua no sistema externo.`
+            ? `Agenda operacional em agendamento-ai filtrada pelo tenant ${activeTenantSlug}. O Core conversa pela base bot-whatsapp-ai e espelha aqui apenas o que foi integrado.`
             : 'Selecione um projeto para visualizar espelhos locais de agendamento.'
         }
         actions={
@@ -105,13 +122,13 @@ export function AppointmentsPage() {
 
       {!loading && !error && activeProject && (
         <SectionCard
-          title="Appointment mirrors"
-          description="Leitura dos registros locais opcionais. Eles não substituem a confirmação final do sistema externo."
+          title="Appointments em agendamento-ai"
+          description="Leitura operacional da base de agenda. O filtro usa o tenant do projeto ativo do bot/core."
         >
           {appointments.length === 0 ? (
             <EmptyState
               title="Nenhum mirror encontrado"
-              description="Os espelhos locais aparecerão aqui apenas quando o Core decidir materializá-los como apoio operacional."
+              description="Os appointments aparecem aqui depois que o Core integra uma solicitação para o domínio operacional da agenda."
             />
           ) : (
             <DataTable

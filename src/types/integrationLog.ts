@@ -3,6 +3,7 @@ import type { IntegrationLogStatus } from '../core/constants/domain';
 export interface IntegrationLog {
   id: string;
   projectId: string;
+  tenantSlug?: string;
   integrationEventId: string;
   serviceRequestId: string;
   connectionId?: string;

@@ -32,7 +32,7 @@ import {
   readUnknown
 } from '../../core/mappers/firestore';
 import type { ProjectConnection } from '../../core/entities';
-import { db } from '../../firebase/config';
+import { botDb } from '../../firebase/config';
 
 export interface CreateProjectConnectionInput {
   projectId: string;
@@ -90,7 +90,7 @@ function mapProjectConnectionDocument(
 // É por aqui que o orquestrador vai conectar projetos a sistemas como
 // agendamentos-ai e outros módulos futuros sem acoplar o domínio principal.
 export async function getProjectConnections(projectId?: string): Promise<ProjectConnection[]> {
-  const baseCollection = collection(db, FIRESTORE_COLLECTIONS.projectConnections);
+  const baseCollection = collection(botDb, FIRESTORE_COLLECTIONS.projectConnections);
   const snapshot = projectId
     ? await getDocs(query(baseCollection, where('projectId', '==', projectId)))
     : await getDocs(baseCollection);
@@ -138,7 +138,7 @@ export async function getPreferredProjectConnection(
 export async function createProjectConnection(
   data: CreateProjectConnectionInput
 ): Promise<string> {
-  const documentRef = await addDoc(collection(db, FIRESTORE_COLLECTIONS.projectConnections), {
+  const documentRef = await addDoc(collection(botDb, FIRESTORE_COLLECTIONS.projectConnections), {
     ...data,
     endpointUrl: data.endpointUrl.trim(),
     authToken: data.authToken.trim(),
@@ -153,5 +153,5 @@ export async function updateProjectConnection(
   id: string,
   data: UpdateProjectConnectionInput
 ): Promise<void> {
-  await updateDoc(doc(db, FIRESTORE_COLLECTIONS.projectConnections, id), data);
+  await updateDoc(doc(botDb, FIRESTORE_COLLECTIONS.projectConnections, id), data);
 }

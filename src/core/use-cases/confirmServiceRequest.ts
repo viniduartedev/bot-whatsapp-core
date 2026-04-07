@@ -9,8 +9,13 @@ import {
 } from 'firebase/firestore';
 import { canConfirmServiceRequestStatus } from '../constants/domain';
 import { FIRESTORE_COLLECTIONS } from '../constants/firestoreCollections';
+import { mirrorAppointmentToAgendamentoAi } from '../integrations/agendamentoAi';
 import type { IntegrationEvent, IntegrationLog, ServiceRequest } from '../entities';
-import { db } from '../../firebase/config';
+import {
+  AGENDAMENTO_FIREBASE_PROJECT_ID,
+  BOT_FIREBASE_PROJECT_ID,
+  botDb
+} from '../../firebase/config';
 import { getContactById } from '../../services/firestore/contacts';
 import { getPreferredProjectConnection } from '../../services/firestore/projectConnections';
 import {
@@ -64,6 +69,8 @@ function buildIntegrationRequestSummary(serviceRequest: ServiceRequest, contact:
     channel: serviceRequest.channel,
     requestedDate: serviceRequest.requestedDate,
     requestedTime: serviceRequest.requestedTime,
+    tenantSlug: serviceRequest.tenantSlug,
+    service: serviceRequest.service,
     source: serviceRequest.source,
     contact: {
       id: contact.id,
@@ -83,6 +90,7 @@ function buildIntegrationEventWritePayload(input: {
 
   return {
     projectId: serviceRequest.projectId,
+    tenantSlug: serviceRequest.tenantSlug,
     serviceRequestId: serviceRequest.id,
     ...(connection ? { connectionId: connection.id } : {}),
     contactId,
@@ -102,6 +110,7 @@ function buildIntegrationLogWritePayload(input: {
   integrationEventId: string;
   serviceRequestId: string;
   connectionId?: string;
+  tenantSlug?: string;
   status: IntegrationLog['status'];
   message: string;
   httpStatus?: number;
@@ -110,6 +119,7 @@ function buildIntegrationLogWritePayload(input: {
 }): IntegrationLogWritePayload {
   return {
     projectId: input.projectId,
+    ...(input.tenantSlug ? { tenantSlug: input.tenantSlug } : {}),
     integrationEventId: input.integrationEventId,
     serviceRequestId: input.serviceRequestId,
     ...(input.connectionId ? { connectionId: input.connectionId } : {}),
@@ -147,7 +157,7 @@ async function parseIntegrationResponse(response: Response): Promise<Integration
 }
 
 async function writeIntegrationLog(payload: IntegrationLogWritePayload): Promise<void> {
-  const logRef = doc(collection(db, FIRESTORE_COLLECTIONS.integrationLogs));
+  const logRef = doc(collection(botDb, FIRESTORE_COLLECTIONS.integrationLogs));
   await setDoc(logRef, payload);
 }
 
@@ -186,7 +196,9 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     );
   }
 
-  const environmentPreference = import.meta.env.PROD ? 'prod' : 'dev';
+  const environmentPreference = (import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD
+    ? 'prod'
+    : 'dev';
   const connection = await getPreferredProjectConnection(
     serviceRequest.projectId,
     environmentPreference,
@@ -195,7 +207,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
   );
   const requestSummary = buildIntegrationRequestSummary(serviceRequest, contact);
   const serviceRequestRef = getServiceRequestDocumentRef(normalizedRequestId);
-  const integrationEventRef = doc(collection(db, FIRESTORE_COLLECTIONS.integrationEvents));
+  const integrationEventRef = doc(collection(botDb, FIRESTORE_COLLECTIONS.integrationEvents));
   const integrationEventPayload = buildIntegrationEventWritePayload({
     serviceRequest,
     contactId: contact.id,
@@ -203,7 +215,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     requestSummary
   });
 
-  await runTransaction(db, async (transaction) => {
+  await runTransaction(botDb, async (transaction) => {
     const serviceRequestSnapshot = await transaction.get(serviceRequestRef);
     const currentServiceRequest = mapServiceRequestSnapshot(serviceRequestSnapshot);
 
@@ -237,6 +249,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     await writeIntegrationLog(
       buildIntegrationLogWritePayload({
         projectId: serviceRequest.projectId,
+        tenantSlug: serviceRequest.tenantSlug,
         integrationEventId: integrationEventRef.id,
         serviceRequestId: serviceRequest.id,
         status: 'error',
@@ -260,12 +273,16 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     throw new ConfirmServiceRequestError('project-connection-not-found', message);
   }
 
-  if (!connection.endpointUrl.trim()) {
+  const usesFirebaseAgendaMirror =
+    connection.provider === 'firebase' && connection.targetProjectId === AGENDAMENTO_FIREBASE_PROJECT_ID;
+
+  if (!usesFirebaseAgendaMirror && !connection.endpointUrl.trim()) {
     const message = 'A projectConnection ativa não possui endpointUrl configurada.';
 
     await writeIntegrationLog(
       buildIntegrationLogWritePayload({
         projectId: serviceRequest.projectId,
+        tenantSlug: serviceRequest.tenantSlug,
         integrationEventId: integrationEventRef.id,
         serviceRequestId: serviceRequest.id,
         connectionId: connection.id,
@@ -310,9 +327,14 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     }
   };
 
+  console.info(
+    `[core][confirm] firebaseProject=${BOT_FIREBASE_PROJECT_ID} tenant=${serviceRequest.tenantSlug || '-'} service=${serviceRequest.service?.key ?? '-'} provider=${connection.provider} targetProject=${connection.targetProjectId}`
+  );
+
   await writeIntegrationLog(
     buildIntegrationLogWritePayload({
       projectId: serviceRequest.projectId,
+      tenantSlug: serviceRequest.tenantSlug,
       integrationEventId: integrationEventRef.id,
       serviceRequestId: serviceRequest.id,
       connectionId: connection.id,
@@ -325,6 +347,90 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     status: 'dispatched',
     dispatchedAt: serverTimestamp()
   });
+
+  if (usesFirebaseAgendaMirror) {
+    try {
+      const appointmentId = await mirrorAppointmentToAgendamentoAi({
+        serviceRequest,
+        contact,
+        integrationEventId: integrationEventRef.id
+      });
+      const responseSummary: IntegrationResponseSummary = {
+        status: 200,
+        body: {
+          mirrored: true,
+          appointmentId,
+          targetProjectId: AGENDAMENTO_FIREBASE_PROJECT_ID
+        }
+      };
+
+      await writeIntegrationLog(
+        buildIntegrationLogWritePayload({
+          projectId: serviceRequest.projectId,
+          tenantSlug: serviceRequest.tenantSlug,
+          integrationEventId: integrationEventRef.id,
+          serviceRequestId: serviceRequest.id,
+          connectionId: connection.id,
+          status: 'success',
+          message: 'Appointment espelhado no Firestore operacional agendamento-ai.',
+          httpStatus: 200,
+          payloadSummary: outboundPayload,
+          responseSummary
+        })
+      );
+      await updateDoc(integrationEventRef, {
+        status: 'success',
+        responseSummary,
+        lastError: '',
+        completedAt: serverTimestamp()
+      });
+      await updateDoc(serviceRequestRef, {
+        status: 'integrado',
+        integratedAt: serverTimestamp(),
+        lastIntegrationError: '',
+        externalAppointmentId: appointmentId
+      });
+
+      return;
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? `Falha ao espelhar appointment para agendamento-ai: ${err.message}`
+          : 'Falha desconhecida ao espelhar appointment para agendamento-ai.';
+
+      await writeIntegrationLog(
+        buildIntegrationLogWritePayload({
+          projectId: serviceRequest.projectId,
+          tenantSlug: serviceRequest.tenantSlug,
+          integrationEventId: integrationEventRef.id,
+          serviceRequestId: serviceRequest.id,
+          connectionId: connection.id,
+          status: 'error',
+          message,
+          payloadSummary: outboundPayload,
+          responseSummary: {
+            error: 'agenda_mirror_failed',
+            targetProjectId: AGENDAMENTO_FIREBASE_PROJECT_ID
+          }
+        })
+      );
+      await updateDoc(integrationEventRef, {
+        status: 'error',
+        lastError: message,
+        completedAt: serverTimestamp(),
+        responseSummary: {
+          error: 'agenda_mirror_failed',
+          targetProjectId: AGENDAMENTO_FIREBASE_PROJECT_ID
+        }
+      });
+      await updateDoc(serviceRequestRef, {
+        status: 'erro_integracao',
+        lastIntegrationError: message
+      });
+
+      throw new ConfirmServiceRequestError('integration-dispatch-failed', message);
+    }
+  }
 
   try {
     const response = await fetch(connection.endpointUrl, {
@@ -349,6 +455,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
       await writeIntegrationLog(
         buildIntegrationLogWritePayload({
           projectId: serviceRequest.projectId,
+          tenantSlug: serviceRequest.tenantSlug,
           integrationEventId: integrationEventRef.id,
           serviceRequestId: serviceRequest.id,
           connectionId: connection.id,
@@ -376,6 +483,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     await writeIntegrationLog(
       buildIntegrationLogWritePayload({
         projectId: serviceRequest.projectId,
+        tenantSlug: serviceRequest.tenantSlug,
         integrationEventId: integrationEventRef.id,
         serviceRequestId: serviceRequest.id,
         connectionId: connection.id,
@@ -410,6 +518,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     await writeIntegrationLog(
       buildIntegrationLogWritePayload({
         projectId: serviceRequest.projectId,
+        tenantSlug: serviceRequest.tenantSlug,
         integrationEventId: integrationEventRef.id,
         serviceRequestId: serviceRequest.id,
         connectionId: connection.id,

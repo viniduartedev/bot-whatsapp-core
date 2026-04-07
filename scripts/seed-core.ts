@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { FIRESTORE_COLLECTIONS } from '../src/core/constants/firestoreCollections';
 import { buildAppointmentIdFromRequestId } from '../src/core/constants/identifiers';
+import { buildDefaultBotProfileDraft } from '../src/types/botProfile';
 
 type FirestoreSeedPrimitive = string | number | boolean | null;
 type FirestoreSeedValue = FirestoreSeedPrimitive | FirestoreSeedPayload | FirestoreSeedValue[];
@@ -216,6 +217,32 @@ const demoProjectConnections = [
   }
 ] as const;
 
+const demoBotProfiles = [
+  {
+    id: demoProjectId,
+    data: {
+      projectId: demoProjectId,
+      ...buildDefaultBotProfileDraft('Clinica Demo'),
+      closingMessage: 'Recebemos sua solicitação e nossa equipe vai confirmar os próximos passos.',
+      updatedAt: now,
+      createdAt: now
+    }
+  },
+  {
+    id: secondaryProjectId,
+    data: {
+      projectId: secondaryProjectId,
+      ...buildDefaultBotProfileDraft('Estudio Demo', 'Lia'),
+      tone: 'friendly',
+      active: false,
+      welcomeMessage: 'Olá! Aqui é a Lia, assistente virtual do Estudio Demo. Como posso ajudar você hoje?',
+      closingMessage: 'Assim que este perfil for ativado, o menu principal estará pronto para uso.',
+      updatedAt: now,
+      createdAt: now
+    }
+  }
+] as const;
+
 const demoIntegrationEvents = [
   {
     id: 'core-integration-event-carla',
@@ -361,6 +388,11 @@ const seedDocuments: SeedDocument[] = [
       createdAt: now
     }
   },
+  ...demoBotProfiles.map((profile) => ({
+    collection: FIRESTORE_COLLECTIONS.botProfiles,
+    id: profile.id,
+    data: { ...profile.data }
+  })),
   ...demoContacts.map((contact) => ({
     collection: FIRESTORE_COLLECTIONS.contacts,
     id: contact.id,
@@ -398,8 +430,13 @@ const seedDocuments: SeedDocument[] = [
       projectId: demoProjectId,
       requestId: demoServiceRequests[2].id,
       contactId: demoContacts[2].id,
+      tenantSlug: 'clinica-devtec',
       date: '2026-04-04',
       time: '15:00',
+      service: {
+        key: 'corte',
+        label: 'Corte'
+      },
       status: 'confirmado',
       sourceOfTruth: 'agendamentos-ai',
       integrationEventId: demoIntegrationEvents[0].id,
@@ -547,6 +584,7 @@ async function main() {
   console.log(
     `Seed do core concluido: ${seedDocuments.length} documentos atualizados em ${[
       FIRESTORE_COLLECTIONS.projects,
+      FIRESTORE_COLLECTIONS.botProfiles,
       FIRESTORE_COLLECTIONS.contacts,
       FIRESTORE_COLLECTIONS.inboundEvents,
       FIRESTORE_COLLECTIONS.projectConnections,

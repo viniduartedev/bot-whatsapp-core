@@ -9,7 +9,7 @@ import {
   readUnknown
 } from '../../core/mappers/firestore';
 import type { Contact } from '../../core/entities';
-import { db } from '../../firebase/config';
+import { botDb } from '../../firebase/config';
 
 function mapContactDocument(id: string, data: Record<string, unknown>): Contact {
   const lastInteractionAt = readOptionalUnknown(data, 'lastInteractionAt');
@@ -26,7 +26,7 @@ function mapContactDocument(id: string, data: Record<string, unknown>): Contact 
 }
 
 export async function getContacts(projectId?: string): Promise<Contact[]> {
-  const baseCollection = collection(db, FIRESTORE_COLLECTIONS.contacts);
+  const baseCollection = collection(botDb, FIRESTORE_COLLECTIONS.contacts);
   const snapshot = projectId
     ? await getDocs(query(baseCollection, where('projectId', '==', projectId)))
     : await getDocs(baseCollection);
@@ -37,7 +37,7 @@ export async function getContacts(projectId?: string): Promise<Contact[]> {
 }
 
 export async function getContactById(contactId: string): Promise<Contact | null> {
-  const snapshot = await getDoc(doc(db, FIRESTORE_COLLECTIONS.contacts, contactId));
+  const snapshot = await getDoc(doc(botDb, FIRESTORE_COLLECTIONS.contacts, contactId));
 
   if (!snapshot.exists()) {
     return null;

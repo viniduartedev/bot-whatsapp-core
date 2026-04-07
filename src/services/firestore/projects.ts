@@ -3,7 +3,7 @@ import { PROJECT_STATUSES } from '../../core/constants/domain';
 import { FIRESTORE_COLLECTIONS } from '../../core/constants/firestoreCollections';
 import { mapQuerySnapshot, readEnumValue, readString, readUnknown } from '../../core/mappers/firestore';
 import type { Project } from '../../core/entities';
-import { db } from '../../firebase/config';
+import { botDb } from '../../firebase/config';
 
 export interface CreateProjectInput {
   name: string;
@@ -16,12 +16,14 @@ function normalizeProjectSlug(slug: string): string {
 }
 
 export async function getProjects(): Promise<Project[]> {
-  const snapshot = await getDocs(collection(db, FIRESTORE_COLLECTIONS.projects));
+  const snapshot = await getDocs(collection(botDb, FIRESTORE_COLLECTIONS.projects));
 
   return mapQuerySnapshot(snapshot, ({ id, data }) => ({
     id,
     name: readString(data, 'name'),
     slug: readString(data, 'slug'),
+    tenantId: readString(data, 'tenantId'),
+    tenantSlug: readString(data, 'tenantSlug').trim() || readString(data, 'slug'),
     status: readEnumValue(data, 'status', PROJECT_STATUSES, 'inactive'),
     createdAt: readUnknown(data, 'createdAt')
   })).sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
@@ -36,7 +38,7 @@ export async function createProject(input: CreateProjectInput): Promise<string> 
   }
 
   const duplicateQuery = query(
-    collection(db, FIRESTORE_COLLECTIONS.projects),
+    collection(botDb, FIRESTORE_COLLECTIONS.projects),
     where('slug', '==', slug)
   );
   const duplicateSnapshot = await getDocs(duplicateQuery);
@@ -45,9 +47,11 @@ export async function createProject(input: CreateProjectInput): Promise<string> 
     throw new Error('Já existe um projeto com este slug.');
   }
 
-  const documentRef = await addDoc(collection(db, FIRESTORE_COLLECTIONS.projects), {
+  const documentRef = await addDoc(collection(botDb, FIRESTORE_COLLECTIONS.projects), {
     name,
     slug,
+    tenantId: slug,
+    tenantSlug: slug,
     status: input.status,
     createdAt: serverTimestamp()
   });

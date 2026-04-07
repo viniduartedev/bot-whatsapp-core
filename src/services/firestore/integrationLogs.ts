@@ -10,7 +10,7 @@ import {
   readUnknown
 } from '../../core/mappers/firestore';
 import type { IntegrationLog } from '../../core/entities';
-import { db } from '../../firebase/config';
+import { botDb } from '../../firebase/config';
 
 function mapIntegrationLogDocument(id: string, data: DocumentData): IntegrationLog {
   const connectionId = readString(data, 'connectionId');
@@ -27,6 +27,7 @@ function mapIntegrationLogDocument(id: string, data: DocumentData): IntegrationL
   return {
     id,
     projectId: readString(data, 'projectId'),
+    tenantSlug: readString(data, 'tenantSlug'),
     integrationEventId: readString(data, 'integrationEventId'),
     serviceRequestId: readString(data, 'serviceRequestId'),
     ...(connectionId ? { connectionId } : {}),
@@ -49,11 +50,11 @@ function sortByCreatedAtDescending<T extends { createdAt: unknown }>(items: T[])
 }
 
 export function getIntegrationLogDocumentRef(logId: string) {
-  return doc(db, FIRESTORE_COLLECTIONS.integrationLogs, logId);
+  return doc(botDb, FIRESTORE_COLLECTIONS.integrationLogs, logId);
 }
 
 export async function getIntegrationLogs(projectId?: string): Promise<IntegrationLog[]> {
-  const baseCollection = collection(db, FIRESTORE_COLLECTIONS.integrationLogs);
+  const baseCollection = collection(botDb, FIRESTORE_COLLECTIONS.integrationLogs);
   const snapshot = projectId
     ? await getDocs(query(baseCollection, where('projectId', '==', projectId)))
     : await getDocs(baseCollection);

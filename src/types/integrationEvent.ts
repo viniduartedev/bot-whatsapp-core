@@ -8,6 +8,7 @@ import type {
 export interface IntegrationEvent {
   id: string;
   projectId: string;
+  tenantSlug?: string;
   serviceRequestId: string;
   connectionId?: string;
   contactId?: string;

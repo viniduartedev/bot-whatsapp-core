@@ -17,6 +17,11 @@ export function readString(data: DocumentData, field: string, fallback = ''): st
   return typeof value === 'string' ? value : fallback;
 }
 
+export function readBoolean(data: DocumentData, field: string, fallback = false): boolean {
+  const value = data[field];
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 export function readUnknown(data: DocumentData, field: string, fallback: unknown = null): unknown {
   return data[field] ?? fallback;
 }

@@ -53,7 +53,7 @@ export function ServiceRequestsPage() {
       setFeedback({
         tone: 'success',
         message:
-          'Solicitação confirmada com sucesso. O Core registrou o integrationEvent, despachou o outbound e atualizou o resultado operacional.'
+          'Solicitação confirmada com sucesso. O Core registrou o integrationEvent no bot-whatsapp-ai e espelhou o appointment operacional quando a conexão aponta para agendamento-ai.'
       });
     } catch (err) {
       const message =
@@ -89,6 +89,17 @@ export function ServiceRequestsPage() {
       id: 'requestedTime',
       header: 'Horário',
       cell: (request) => request.requestedTime || '-'
+    },
+    {
+      id: 'tenantSlug',
+      header: 'Tenant',
+      cell: (request) => request.tenantSlug || '-'
+    },
+    {
+      id: 'service',
+      header: 'Serviço',
+      cell: (request) =>
+        request.service ? `${request.service.label} (${request.service.key})` : '-'
     },
     {
       id: 'contactId',

@@ -5,6 +5,8 @@ export interface Project {
   id: string;
   name: string;
   slug: string;
+  tenantId?: string;
+  tenantSlug?: string;
   status: ProjectStatus;
   createdAt: unknown;
 }
