@@ -52,7 +52,7 @@ const columns: DataTableColumn<Appointment>[] = [
   {
     id: 'sourceOfTruth',
     header: 'Fonte de verdade',
-    cell: (appointment) => appointment.sourceOfTruth || 'agendamentos-ai'
+    cell: (appointment) => appointment.sourceOfTruth || 'agendamento-ai'
   },
   {
     id: 'externalReference',
@@ -94,7 +94,7 @@ export function AppointmentsPage() {
         title="Appointments"
         description={
           activeProject
-            ? `Agenda operacional em agendamento-ai filtrada pelo tenant ${activeTenantSlug}. O Core conversa pela base bot-whatsapp-ai e espelha aqui apenas o que foi integrado.`
+            ? `Agenda operacional em agendamento-ai filtrada pelo tenant ${activeTenantSlug}. O Core conversa pela base bot-whatsapp-ai e espelha em agendamento-ai apenas o que foi integrado.`
             : 'Selecione um projeto para visualizar espelhos locais de agendamento.'
         }
         actions={
@@ -123,7 +123,7 @@ export function AppointmentsPage() {
       {!loading && !error && activeProject && (
         <SectionCard
           title="Appointments em agendamento-ai"
-          description="Leitura operacional da base de agenda. O filtro usa o tenant do projeto ativo do bot/core."
+          description="Leitura operacional da base de agenda. appointmentsTarget = agendamento-ai-9fbfb e o filtro usa o tenant do projeto ativo do bot/core."
         >
           {appointments.length === 0 ? (
             <EmptyState

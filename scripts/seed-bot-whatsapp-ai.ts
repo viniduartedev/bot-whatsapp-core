@@ -15,10 +15,13 @@ interface SeedDocument {
 }
 
 const expectedFirebaseProjectId = 'bot-whatsapp-ai-d10ef';
+const expectedAgendaFirebaseProjectId = 'agendamento-ai-9fbfb';
 const firebaseProjectId =
   process.env.BOT_FIREBASE_PROJECT_ID ??
   process.env.VITE_BOT_FIREBASE_PROJECT_ID ??
   expectedFirebaseProjectId;
+const agendaFirebaseProjectId =
+  process.env.AGENDAMENTO_FIREBASE_PROJECT_ID ?? expectedAgendaFirebaseProjectId;
 
 if (firebaseProjectId !== expectedFirebaseProjectId) {
   throw new Error(
@@ -26,35 +29,30 @@ if (firebaseProjectId !== expectedFirebaseProjectId) {
   );
 }
 
+if (agendaFirebaseProjectId !== expectedAgendaFirebaseProjectId) {
+  throw new Error(
+    `Seed bloqueado: AGENDAMENTO_FIREBASE_PROJECT_ID deve ser ${expectedAgendaFirebaseProjectId}, recebido ${agendaFirebaseProjectId}.`
+  );
+}
+
 const now = new Date().toISOString();
 const tenantId = 'clinica-devtec';
 const tenantSlug = 'clinica-devtec';
+const agendaTenantId = 'demo-tenant';
 const coreProjectId = 'core-project-clinica-devtec';
 
-const services = [
+const agendaServices = [
   {
-    id: 'clinica-devtec-consulta-avaliacao',
     key: 'consulta_avaliacao',
-    label: 'Consulta de avaliação',
-    description: 'Primeiro atendimento para entender a necessidade do paciente.',
-    durationMinutes: 45,
-    order: 1
+    label: 'Consulta de avaliação'
   },
   {
-    id: 'clinica-devtec-retorno',
     key: 'retorno',
-    label: 'Retorno',
-    description: 'Acompanhamento de paciente que já passou por atendimento inicial.',
-    durationMinutes: 30,
-    order: 2
+    label: 'Retorno'
   },
   {
-    id: 'clinica-devtec-procedimento',
     key: 'procedimento',
-    label: 'Procedimento',
-    description: 'Solicitação de procedimento com confirmação posterior da equipe.',
-    durationMinutes: 60,
-    order: 3
+    label: 'Procedimento'
   }
 ] as const;
 
@@ -73,7 +71,9 @@ const seedDocuments: SeedDocument[] = [
       status: 'active',
       defaultProjectId: coreProjectId,
       firebaseProjectId,
-      sourceOfTruth: 'bot-whatsapp-ai',
+      conversationSource: firebaseProjectId,
+      servicesSource: agendaFirebaseProjectId,
+      appointmentsTarget: agendaFirebaseProjectId,
       createdAt: now,
       updatedAt: now
     }
@@ -89,7 +89,9 @@ const seedDocuments: SeedDocument[] = [
       status: 'active',
       channel: 'whatsapp',
       domain: 'bot-core',
-      schedulingSourceOfTruth: 'agendamento-ai',
+      conversationSource: firebaseProjectId,
+      servicesSource: agendaFirebaseProjectId,
+      appointmentsTarget: agendaFirebaseProjectId,
       createdAt: now,
       updatedAt: now
     }
@@ -109,26 +111,6 @@ const seedDocuments: SeedDocument[] = [
       updatedAt: now
     }
   },
-  ...services.map((service) => ({
-    collection: FIRESTORE_COLLECTIONS.services,
-    id: service.id,
-    data: {
-      projectId: coreProjectId,
-      tenantId,
-      tenantSlug,
-      key: service.key,
-      label: service.label,
-      description: service.description,
-      channel: 'whatsapp',
-      type: 'appointment',
-      active: true,
-      requiresScheduling: true,
-      durationMinutes: service.durationMinutes,
-      order: service.order,
-      createdAt: now,
-      updatedAt: now
-    }
-  })),
   {
     collection: FIRESTORE_COLLECTIONS.projectConnections,
     id: 'project-connection-clinica-devtec-agendamento-dev',
@@ -140,9 +122,10 @@ const seedDocuments: SeedDocument[] = [
       provider: 'firebase',
       status: 'active',
       targetSystem: 'agendamento-ai',
-      targetProjectId: 'agendamento-ai-9fbfb',
+      targetProjectId: agendaFirebaseProjectId,
+      targetTenantId: agendaTenantId,
       environment: 'dev',
-      endpointUrl: 'firestore://agendamento-ai-9fbfb/appointments',
+      endpointUrl: `firestore://${agendaFirebaseProjectId}/appointments`,
       authTokenEnv: '',
       direction: 'outbound',
       acceptedEventTypes: ['appointment'],
@@ -179,7 +162,7 @@ const seedDocuments: SeedDocument[] = [
       phone: '+5511999990000',
       status: 'active',
       currentStep: 'service_selected',
-      selectedServiceKey: services[0].key,
+      selectedServiceKey: agendaServices[0].key,
       lastInboundText: '/dev clinica-devtec',
       createdAt: now,
       updatedAt: now
@@ -198,8 +181,8 @@ const seedDocuments: SeedDocument[] = [
       channel: 'whatsapp',
       source: 'whatsapp_dev_command',
       service: {
-        key: services[0].key,
-        label: services[0].label
+        key: agendaServices[0].key,
+        label: agendaServices[0].label
       },
       requestedDate: '2026-04-08',
       requestedTime: '09:00',
@@ -218,7 +201,7 @@ const seedDocuments: SeedDocument[] = [
       status: 'success',
       source: 'seed-bot-whatsapp-ai',
       message:
-        'Seed inicial aplicado para preparar tenant, projeto, perfil do bot e catálogo de serviços.',
+        'Seed inicial aplicado para preparar tenant, projeto, perfil do bot e contrato conversacional. Serviços reais permanecem em agendamento-ai.',
       createdAt: now
     }
   }
@@ -323,7 +306,7 @@ async function main() {
     `Seed bot-whatsapp-ai concluido: ${seedDocuments.length} documentos atualizados para ${tenantSlug} em ${firebaseProjectId}.`
   );
   console.log(
-    `Servicos ativos para consulta do bot: ${services.map((service) => service.key).join(', ')}.`
+    `Servicos reais para consulta do bot devem vir de ${agendaFirebaseProjectId}: ${agendaServices.map((service) => service.key).join(', ')}.`
   );
 }
 

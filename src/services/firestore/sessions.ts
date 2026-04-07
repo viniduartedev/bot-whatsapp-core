@@ -8,7 +8,7 @@ import {
   readUnknown
 } from '../../core/mappers/firestore';
 import type { BotSession } from '../../core/entities';
-import { BOT_FIREBASE_PROJECT_ID, botDb } from '../../firebase/config';
+import { CONVERSATION_FIREBASE_PROJECT_ID, botDb } from '../../firebase/config';
 
 export interface UpsertBotSessionInput {
   id: string;
@@ -92,7 +92,7 @@ export async function upsertBotSession(input: UpsertBotSessionInput): Promise<st
   }
 
   console.info(
-    `[bot][session] firebaseProject=${BOT_FIREBASE_PROJECT_ID} tenant=${tenantSlug} project=${projectId} session=${sessionId} step=${payload.currentStep}`
+    `[bot][session] conversationSource=${CONVERSATION_FIREBASE_PROJECT_ID} tenant=${tenantSlug} project=${projectId} session=${sessionId} step=${payload.currentStep}`
   );
 
   return sessionId;

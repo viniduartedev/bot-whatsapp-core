@@ -64,9 +64,9 @@ service cloud.firestore {
     }
 
     match /services/{serviceId} {
-      allow read: if true;
-      allow create, update: if (isAdminWriter() || isBotCoreWriter() || canPilotDevWrite(request.resource.data)) && hasProjectTenantScope(request.resource.data);
-      allow delete: if false;
+      // Nesta fase, `services` reais nao pertencem mais ao dominio
+      // conversacional. A fonte oficial e `agendamento-ai-9fbfb/services`.
+      allow read, create, update, delete: if false;
     }
 
     match /botProfiles/{projectId} {

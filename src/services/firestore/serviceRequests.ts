@@ -21,7 +21,7 @@ import {
   readUnknown
 } from '../../core/mappers/firestore';
 import type { ServiceRequest } from '../../core/entities';
-import { BOT_FIREBASE_PROJECT_ID, botDb } from '../../firebase/config';
+import { CONVERSATION_FIREBASE_PROJECT_ID, botDb } from '../../firebase/config';
 import type { AppointmentService } from '../../types/appointment';
 
 export interface CreateBotServiceRequestInput {
@@ -83,8 +83,10 @@ function mapServiceRequestDocument(id: string, data: DocumentData): ServiceReque
   return {
     id,
     projectId: readString(data, 'projectId'),
+    tenantId: readString(data, 'tenantId').trim() || undefined,
     tenantSlug: readString(data, 'tenantSlug').trim() || readString(data, 'tenantId').trim(),
     contactId: readString(data, 'contactId'),
+    sessionId: readString(data, 'sessionId').trim() || undefined,
     type: readEnumValue(data, 'type', SERVICE_REQUEST_TYPES, 'appointment'),
     channel: readEnumValue(data, 'channel', CORE_CHANNELS, 'whatsapp'),
     source: readString(data, 'source'),
@@ -121,7 +123,7 @@ export async function getServiceRequests(projectId?: string): Promise<ServiceReq
     ? await getDocs(query(baseCollection, where('projectId', '==', projectId)))
     : await getDocs(baseCollection);
   console.info(
-    `[core][serviceRequests] firebaseProject=${BOT_FIREBASE_PROJECT_ID} project=${projectId ?? '*'} requestsLoaded=${snapshot.size}`
+    `[core][serviceRequests] conversationSource=${CONVERSATION_FIREBASE_PROJECT_ID} project=${projectId ?? '*'} requestsLoaded=${snapshot.size}`
   );
 
   return mapQuerySnapshot(snapshot, ({ id, data }) => mapServiceRequestDocument(id, data)).sort(
@@ -189,7 +191,7 @@ export async function createServiceRequestFromBot(
   }
 
   console.info(
-    `[core][serviceRequest:create] firebaseProject=${BOT_FIREBASE_PROJECT_ID} tenant=${tenantSlug} project=${projectId} service=${serviceKey} requestId=${documentRef.id}`
+    `[core][serviceRequest:create] conversationSource=${CONVERSATION_FIREBASE_PROJECT_ID} tenant=${tenantSlug} project=${projectId} service=${serviceKey} requestId=${documentRef.id}`
   );
 
   return documentRef.id;

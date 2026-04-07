@@ -104,6 +104,9 @@ export const agendaFirebaseConfig: FirebaseOptions = {
 
 export const BOT_FIREBASE_PROJECT_ID = botFirebaseConfig.projectId ?? '';
 export const AGENDAMENTO_FIREBASE_PROJECT_ID = agendaFirebaseConfig.projectId ?? '';
+export const SERVICES_SOURCE_FIREBASE_PROJECT_ID = AGENDAMENTO_FIREBASE_PROJECT_ID;
+export const CONVERSATION_FIREBASE_PROJECT_ID = BOT_FIREBASE_PROJECT_ID;
+export const APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID = AGENDAMENTO_FIREBASE_PROJECT_ID;
 
 export const botFirebaseApp = initializeNamedApp(BOT_CORE_APP_NAME, botFirebaseConfig);
 export const agendaFirebaseApp = initializeNamedApp(AGENDA_APP_NAME, agendaFirebaseConfig);
@@ -117,3 +120,6 @@ export const db = botDb;
 
 console.info(`[firebase][bot-core] projectId=${BOT_FIREBASE_PROJECT_ID}`);
 console.info(`[firebase][agenda] projectId=${AGENDAMENTO_FIREBASE_PROJECT_ID}`);
+console.info(
+  `[core][architecture] servicesSource=${SERVICES_SOURCE_FIREBASE_PROJECT_ID} conversationSource=${CONVERSATION_FIREBASE_PROJECT_ID} appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID}`
+);

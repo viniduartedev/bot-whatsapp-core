@@ -42,6 +42,12 @@ export function getServiceRequestTone(status: ServiceRequestStatus): StatusBadge
 
 export function getAppointmentTone(status: AppointmentStatus): StatusBadgeTone {
   switch (status) {
+    case 'pending':
+      return 'warning';
+    case 'confirmed':
+      return 'success';
+    case 'cancelled':
+      return 'danger';
     case 'confirmado':
       return 'success';
     case 'reagendado':

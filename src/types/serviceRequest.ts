@@ -4,8 +4,10 @@ import type { AppointmentService } from './appointment';
 export interface ServiceRequest {
   id: string;
   projectId: string;
+  tenantId?: string;
   tenantSlug: string;
   contactId: string;
+  sessionId?: string;
   type: ServiceRequestType;
   channel: CoreChannel;
   source: string;

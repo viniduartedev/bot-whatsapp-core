@@ -22,6 +22,7 @@ export interface ProjectConnection {
   provider: ProjectConnectionProvider;
   status: ProjectConnectionStatus;
   targetProjectId: string;
+  targetTenantId?: string;
   environment: ProjectConnectionEnvironment;
   endpointUrl: string;
   authToken: string;

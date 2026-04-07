@@ -13,11 +13,16 @@ service cloud.firestore {
 
     function hasValidAppointmentPayload(data) {
       return isNonEmptyString(data.projectId) &&
+        isNonEmptyString(data.tenantId) &&
         isNonEmptyString(data.requestId) &&
         isNonEmptyString(data.contactId) &&
         isNonEmptyString(data.tenantSlug) &&
+        isNonEmptyString(data.serviceId) &&
+        isNonEmptyString(data.serviceNameSnapshot) &&
         isNonEmptyString(data.date) &&
         isNonEmptyString(data.time) &&
+        isNonEmptyString(data.customerName) &&
+        isNonEmptyString(data.customerPhone) &&
         isNonEmptyString(data.status) &&
         hasValidAppointmentService(data.service);
     }
@@ -50,6 +55,13 @@ service cloud.firestore {
 
     match /projectConnections/{connectionId} {
       allow read, create, update: if true;
+    }
+
+    // Fonte oficial de serviços reais exibidos no WhatsApp nesta fase.
+    // O Core/bot consulta `agendamento-ai-9fbfb/services` por tenant; a gestão
+    // do catálogo continua pertencendo ao admin operacional da agenda.
+    match /services/{serviceId} {
+      allow read: if true;
     }
 
     // `serviceRequests` passa a ser a porta de entrada principal do core.

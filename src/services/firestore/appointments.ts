@@ -19,7 +19,7 @@ import {
   readUnknown
 } from '../../core/mappers/firestore';
 import type { Appointment, AppointmentService } from '../../core/entities';
-import { AGENDAMENTO_FIREBASE_PROJECT_ID, agendaDb } from '../../firebase/config';
+import { APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID, agendaDb } from '../../firebase/config';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -75,16 +75,26 @@ function mapAppointmentDocument(id: string, data: DocumentData): Appointment {
   const lastSyncedAt = readOptionalUnknown(data, 'lastSyncedAt');
   const tenantSlug = readAppointmentTenantSlug(id, data);
   const service = readAppointmentService(id, data);
+  const tenantId = readString(data, 'tenantId');
+  const serviceId = readString(data, 'serviceId');
+  const serviceNameSnapshot = readString(data, 'serviceNameSnapshot');
+  const customerName = readString(data, 'customerName');
+  const customerPhone = readString(data, 'customerPhone');
 
   return {
     id,
     projectId: readString(data, 'projectId'),
+    ...(tenantId ? { tenantId } : {}),
     requestId: readString(data, 'requestId'),
     contactId: readString(data, 'contactId'),
     tenantSlug,
     date: readString(data, 'date'),
     time: readString(data, 'time'),
+    ...(serviceId ? { serviceId } : {}),
+    ...(serviceNameSnapshot ? { serviceNameSnapshot } : {}),
     service,
+    ...(customerName ? { customerName } : {}),
+    ...(customerPhone ? { customerPhone } : {}),
     status: readEnumValue(data, 'status', APPOINTMENT_STATUSES, 'confirmado'),
     ...(sourceOfTruth ? { sourceOfTruth } : {}),
     ...(integrationEventId ? { integrationEventId } : {}),
@@ -128,7 +138,7 @@ export async function getAppointments(input?: {
     : await getDocs(baseCollection);
 
   console.info(
-    `[agenda][appointments] firebaseProject=${AGENDAMENTO_FIREBASE_PROJECT_ID} tenant=${tenantSlug ?? '-'} project=${projectId ?? '-'} appointmentsLoaded=${snapshot.size}`
+    `[agenda][appointments] appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID} tenant=${tenantSlug ?? '-'} project=${projectId ?? '-'} appointmentsLoaded=${snapshot.size}`
   );
 
   return mapQuerySnapshot(snapshot, ({ id, data }) => mapAppointmentDocument(id, data)).sort(

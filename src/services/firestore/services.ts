@@ -13,7 +13,11 @@ import {
   readUnknown
 } from '../../core/mappers/firestore';
 import type { Service } from '../../core/entities';
-import { BOT_FIREBASE_PROJECT_ID, botDb } from '../../firebase/config';
+import {
+  CONVERSATION_FIREBASE_PROJECT_ID,
+  SERVICES_SOURCE_FIREBASE_PROJECT_ID,
+  agendaDb
+} from '../../firebase/config';
 
 function readNumber(data: DocumentData, field: string, fallback = 0): number {
   const value = data[field];
@@ -22,14 +26,19 @@ function readNumber(data: DocumentData, field: string, fallback = 0): number {
 
 function mapServiceDocument(id: string, data: DocumentData): Service {
   const updatedAt = readOptionalUnknown(data, 'updatedAt');
+  const key = readString(data, 'key').trim() || readString(data, 'slug').trim() || id;
+  const label =
+    readString(data, 'label').trim() ||
+    readString(data, 'name').trim() ||
+    readString(data, 'title').trim();
 
   return {
     id,
     projectId: readString(data, 'projectId'),
     tenantId: readString(data, 'tenantId'),
     tenantSlug: readString(data, 'tenantSlug'),
-    key: readString(data, 'key'),
-    label: readString(data, 'label'),
+    key,
+    label,
     description: readString(data, 'description'),
     channel: readEnumValue(data, 'channel', CORE_CHANNELS, 'whatsapp'),
     type: readEnumValue(data, 'type', SERVICE_REQUEST_TYPES, 'appointment'),
@@ -50,7 +59,7 @@ export async function getActiveServicesByTenant(input: {
   const projectId = input.projectId?.trim();
 
   if (!tenantSlug) {
-    throw new Error('Informe tenantSlug para carregar serviços do bot.');
+    throw new Error('Informe tenantSlug para carregar serviços reais da agenda.');
   }
 
   const filters = [
@@ -58,17 +67,15 @@ export async function getActiveServicesByTenant(input: {
     where('active', '==', true)
   ];
 
-  if (projectId) {
-    filters.push(where('projectId', '==', projectId));
-  }
-
-  const snapshot = await getDocs(query(collection(botDb, FIRESTORE_COLLECTIONS.services), ...filters));
+  const snapshot = await getDocs(
+    query(collection(agendaDb, FIRESTORE_COLLECTIONS.services), ...filters)
+  );
   const services = mapQuerySnapshot(snapshot, ({ id, data }) => mapServiceDocument(id, data)).sort(
     (left, right) => left.order - right.order || left.label.localeCompare(right.label, 'pt-BR')
   );
 
   console.info(
-    `[bot][services] firebaseProject=${BOT_FIREBASE_PROJECT_ID} tenant=${tenantSlug} project=${projectId ?? '*'} servicesLoaded=${services.length}`
+    `[core][services] servicesSource=${SERVICES_SOURCE_FIREBASE_PROJECT_ID} conversationSource=${CONVERSATION_FIREBASE_PROJECT_ID} tenant=${tenantSlug} coreProject=${projectId ?? '*'} servicesLoaded=${services.length}`
   );
 
   return services;

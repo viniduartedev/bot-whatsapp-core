@@ -43,6 +43,7 @@ export interface CreateProjectConnectionInput {
   environment: ProjectConnectionEnvironment;
   endpointUrl: string;
   authToken: string;
+  targetTenantId?: string;
   direction: ProjectConnectionDirection;
   acceptedEventTypes?: ServiceRequestType[];
   retryPolicy?: ProjectConnection['retryPolicy'];
@@ -67,6 +68,7 @@ function mapProjectConnectionDocument(
     provider: readEnumValue(data, 'provider', PROJECT_CONNECTION_PROVIDERS, 'http'),
     status: readEnumValue(data, 'status', PROJECT_CONNECTION_STATUSES, 'inactive'),
     targetProjectId: readString(data, 'targetProjectId'),
+    targetTenantId: readString(data, 'targetTenantId').trim() || undefined,
     environment: readEnumValue(
       data,
       'environment',
@@ -88,7 +90,7 @@ function mapProjectConnectionDocument(
 
 // `projectConnections` representa a camada de integrações externas do core.
 // É por aqui que o orquestrador vai conectar projetos a sistemas como
-// agendamentos-ai e outros módulos futuros sem acoplar o domínio principal.
+// agendamento-ai e outros módulos futuros sem acoplar o domínio principal.
 export async function getProjectConnections(projectId?: string): Promise<ProjectConnection[]> {
   const baseCollection = collection(botDb, FIRESTORE_COLLECTIONS.projectConnections);
   const snapshot = projectId
@@ -143,6 +145,7 @@ export async function createProjectConnection(
     endpointUrl: data.endpointUrl.trim(),
     authToken: data.authToken.trim(),
     targetProjectId: data.targetProjectId.trim(),
+    ...(data.targetTenantId ? { targetTenantId: data.targetTenantId.trim() } : {}),
     createdAt: serverTimestamp()
   });
 

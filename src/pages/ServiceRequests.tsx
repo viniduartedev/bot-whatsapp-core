@@ -198,7 +198,7 @@ export function ServiceRequestsPage() {
       {!loading && !error && activeProject && (
         <SectionCard
           title="Requests queue"
-          description="`serviceRequests` é a principal entrada operacional do Core. A ação de confirmação aprova e dispara a integração outbound, sem transformar o Core na fonte de verdade do agendamento."
+          description="`serviceRequests` permanece em bot-whatsapp-ai-d10ef. A ação de confirmação aprova e dispara a integração outbound para appointmentsTarget = agendamento-ai-9fbfb, sem transformar o Core na fonte de verdade do agendamento."
           aside={
             <div className="filter-bar" aria-label="Filtros por status">
               <button

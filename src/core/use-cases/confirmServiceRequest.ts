@@ -12,8 +12,9 @@ import { FIRESTORE_COLLECTIONS } from '../constants/firestoreCollections';
 import { mirrorAppointmentToAgendamentoAi } from '../integrations/agendamentoAi';
 import type { IntegrationEvent, IntegrationLog, ServiceRequest } from '../entities';
 import {
-  AGENDAMENTO_FIREBASE_PROJECT_ID,
-  BOT_FIREBASE_PROJECT_ID,
+  APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID,
+  CONVERSATION_FIREBASE_PROJECT_ID,
+  SERVICES_SOURCE_FIREBASE_PROJECT_ID,
   botDb
 } from '../../firebase/config';
 import { getContactById } from '../../services/firestore/contacts';
@@ -65,6 +66,8 @@ function buildIntegrationRequestSummary(serviceRequest: ServiceRequest, contact:
   return {
     serviceRequestId: serviceRequest.id,
     projectId: serviceRequest.projectId,
+    ...(serviceRequest.tenantId ? { tenantId: serviceRequest.tenantId } : {}),
+    ...(serviceRequest.sessionId ? { sessionId: serviceRequest.sessionId } : {}),
     type: serviceRequest.type,
     channel: serviceRequest.channel,
     requestedDate: serviceRequest.requestedDate,
@@ -199,6 +202,11 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
   const environmentPreference = (import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD
     ? 'prod'
     : 'dev';
+
+  console.info(
+    `[core][confirm] start serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} tenantSlug=${serviceRequest.tenantSlug || '-'} service.key=${serviceRequest.service?.key ?? '-'} service.label=${serviceRequest.service?.label ?? '-'} status=${serviceRequest.status} stage=load`
+  );
+
   const connection = await getPreferredProjectConnection(
     serviceRequest.projectId,
     environmentPreference,
@@ -274,7 +282,12 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
   }
 
   const usesFirebaseAgendaMirror =
-    connection.provider === 'firebase' && connection.targetProjectId === AGENDAMENTO_FIREBASE_PROJECT_ID;
+    connection.provider === 'firebase' &&
+    connection.targetProjectId === APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID;
+
+  console.info(
+    `[core][confirm] preconditions serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} tenantSlug=${serviceRequest.tenantSlug || '-'} service.key=${serviceRequest.service?.key ?? '-'} service.label=${serviceRequest.service?.label ?? '-'} status=${serviceRequest.status} contactId=${contact.id} contactPhone=${contact.phone || '-'} provider=${connection.provider} connectionId=${connection.id} targetProject=${connection.targetProjectId} targetTenantId=${connection.targetTenantId ?? '-'} usesFirebaseAgendaMirror=${usesFirebaseAgendaMirror}`
+  );
 
   if (!usesFirebaseAgendaMirror && !connection.endpointUrl.trim()) {
     const message = 'A projectConnection ativa não possui endpointUrl configurada.';
@@ -315,6 +328,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
     project: {
       id: serviceRequest.projectId,
       targetProjectId: connection.targetProjectId,
+      targetTenantId: connection.targetTenantId ?? null,
       environment: connection.environment
     },
     serviceRequest: requestSummary,
@@ -328,7 +342,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
   };
 
   console.info(
-    `[core][confirm] firebaseProject=${BOT_FIREBASE_PROJECT_ID} tenant=${serviceRequest.tenantSlug || '-'} service=${serviceRequest.service?.key ?? '-'} provider=${connection.provider} targetProject=${connection.targetProjectId}`
+    `[core][confirm] conversationSource=${CONVERSATION_FIREBASE_PROJECT_ID} servicesSource=${SERVICES_SOURCE_FIREBASE_PROJECT_ID} appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID} tenant=${serviceRequest.tenantSlug || '-'} service=${serviceRequest.service?.key ?? '-'} provider=${connection.provider} targetProject=${connection.targetProjectId}`
   );
 
   await writeIntegrationLog(
@@ -353,6 +367,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
       const appointmentId = await mirrorAppointmentToAgendamentoAi({
         serviceRequest,
         contact,
+        connection,
         integrationEventId: integrationEventRef.id
       });
       const responseSummary: IntegrationResponseSummary = {
@@ -360,7 +375,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
         body: {
           mirrored: true,
           appointmentId,
-          targetProjectId: AGENDAMENTO_FIREBASE_PROJECT_ID
+          targetProjectId: APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID
         }
       };
 
@@ -410,7 +425,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
           payloadSummary: outboundPayload,
           responseSummary: {
             error: 'agenda_mirror_failed',
-            targetProjectId: AGENDAMENTO_FIREBASE_PROJECT_ID
+            targetProjectId: APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID
           }
         })
       );
@@ -420,7 +435,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
         completedAt: serverTimestamp(),
         responseSummary: {
           error: 'agenda_mirror_failed',
-          targetProjectId: AGENDAMENTO_FIREBASE_PROJECT_ID
+          targetProjectId: APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID
         }
       });
       await updateDoc(serviceRequestRef, {

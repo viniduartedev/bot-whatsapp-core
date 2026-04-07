@@ -13,12 +13,17 @@ export interface AppointmentService {
 export interface Appointment {
   id: string;
   projectId: string;
+  tenantId?: string;
   requestId: string;
   contactId: string;
   tenantSlug: string;
   date: string;
   time: string;
+  serviceId?: string;
+  serviceNameSnapshot?: string;
   service: AppointmentService | null;
+  customerName?: string;
+  customerPhone?: string;
   status: AppointmentStatus;
   sourceOfTruth?: string;
   integrationEventId?: string;

@@ -31,6 +31,7 @@ const DEFAULT_FORM_STATE: ProjectConnectionFormState = {
   provider: 'http',
   status: 'active',
   targetProjectId: '',
+  targetTenantId: '',
   environment: 'dev',
   endpointUrl: '',
   authToken: '',
@@ -117,6 +118,11 @@ export function ProjectConnectionsPage() {
       cell: (connection) => connection.targetProjectId
     },
     {
+      id: 'targetTenantId',
+      header: 'Target tenant',
+      cell: (connection) => connection.targetTenantId || '-'
+    },
+    {
       id: 'endpointUrl',
       header: 'Endpoint',
       cell: (connection) => connection.endpointUrl || '-'
@@ -170,12 +176,21 @@ export function ProjectConnectionsPage() {
       return;
     }
 
+    if (formState.provider === 'firebase' && !formState.targetTenantId?.trim()) {
+      setFeedback({
+        tone: 'error',
+        message: 'Informe targetTenantId para conexões Firebase com a agenda operacional.'
+      });
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       await createProjectConnection({
         ...formState,
         projectId: selectedProjectId,
         targetProjectId: formState.targetProjectId.trim(),
+        targetTenantId: formState.targetTenantId?.trim(),
         endpointUrl: formState.endpointUrl.trim(),
         authToken: formState.authToken.trim()
       });
@@ -259,7 +274,7 @@ export function ProjectConnectionsPage() {
       {!loading && !error && selectedProject && (
         <SectionCard
           title="Projeto raiz"
-          description="Este projeto é o tenant operacional que receberá contacts, serviceRequests, inboundEvents e integrações outbound."
+          description="Este projeto é o tenant conversacional em bot-whatsapp-ai-d10ef que recebe contacts, serviceRequests, inboundEvents e integrações outbound."
           aside={
             <button
               type="button"
@@ -283,7 +298,7 @@ export function ProjectConnectionsPage() {
       {!loading && !error && isFormOpen && selectedProject && (
         <SectionCard
           title="Nova conexão"
-          description="Aqui o Core registra a instalação outbound do projeto. O sistema externo continua sendo a fonte de verdade do domínio integrado."
+          description="Aqui o Core registra a instalação outbound do projeto. servicesSource e appointmentsTarget continuam no agendamento-ai-9fbfb."
         >
           <form className="form-grid" onSubmit={handleSubmit}>
             <label className="form-field">
@@ -324,7 +339,16 @@ export function ProjectConnectionsPage() {
               <input
                 value={formState.targetProjectId}
                 onChange={(event) => updateField('targetProjectId', event.target.value)}
-                placeholder="agendamentos-ai-dev"
+                placeholder="agendamento-ai-9fbfb"
+              />
+            </label>
+
+            <label className="form-field">
+              <span>Target tenant id</span>
+              <input
+                value={formState.targetTenantId ?? ''}
+                onChange={(event) => updateField('targetTenantId', event.target.value)}
+                placeholder="demo-tenant"
               />
             </label>
 
@@ -349,7 +373,7 @@ export function ProjectConnectionsPage() {
               <input
                 value={formState.endpointUrl}
                 onChange={(event) => updateField('endpointUrl', event.target.value)}
-                placeholder="https://agendamentos-ai.example.com/integrations/requests"
+                placeholder="firestore://agendamento-ai-9fbfb/appointments"
               />
             </label>
 

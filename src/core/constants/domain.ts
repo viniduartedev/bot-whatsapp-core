@@ -73,6 +73,9 @@ export const INTEGRATION_LOG_STATUSES = ['attempt', 'success', 'error'] as const
 export type IntegrationLogStatus = (typeof INTEGRATION_LOG_STATUSES)[number];
 
 export const APPOINTMENT_STATUSES = [
+  'pending',
+  'confirmed',
+  'cancelled',
   'confirmado',
   'reagendado',
   'cancelado',
