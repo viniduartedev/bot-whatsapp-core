@@ -19,6 +19,8 @@ Contrato oficial desta fase:
 - `conversationSource = bot-whatsapp-ai-d10ef`
 - `appointmentsTarget = agendamento-ai-9fbfb`
 
+Compatibilidade: `appointmentRequests` continua disponível como coleção auxiliar, mas o handoff operacional primário do Core volta a apontar para `appointments` para preservar o contrato real do sistema de agenda.
+
 Não há migração completa nesta etapa. A preparação serve para permitir que o bot/core leia configuração conversacional própria e eventos técnicos sem transformar o `bot-whatsapp-ai-d10ef` na fonte de verdade dos serviços. O catálogo real de serviços permanece no admin operacional de agenda.
 
 ## Serviços Firebase
@@ -55,7 +57,8 @@ Coleções runtime previstas:
 Coleções operacionais em `agendamento-ai-9fbfb` usadas pelo Core nesta fase:
 
 - `services`: catálogo real cadastrado e operado pelo sistema de agenda, consultado pelo bot para montar menu e validar solicitações.
-- `appointments`: destino operacional dos appointments espelhados pelo Core.
+- `appointmentRequests`: coleção auxiliar mantida durante a transição, sem papel primário no fluxo operacional.
+- `appointments`: coleção operacional compatível com o admin, materializada pelo Core para restaurar o contrato real já validado.
 
 ## Regras Firestore
 
@@ -121,7 +124,7 @@ Variáveis recomendadas:
 Clientes no código:
 
 - `botDb`: Firestore do projeto `bot-whatsapp-ai-d10ef`, usado por `sessions`, `serviceRequests` e demais dados conversacionais do bot/core.
-- `agendaDb`: Firestore do projeto `agendamento-ai-9fbfb`, usado por `services` reais e `appointments` operacionais.
+- `agendaDb`: Firestore do projeto `agendamento-ai-9fbfb`, usado por `services`, `appointments` operacionais e `appointmentRequests` apenas como coleção auxiliar.
 - `db`: alias temporário para `botDb` durante a transição.
 
 ## Seed inicial
@@ -170,21 +173,25 @@ agendamento-ai-9fbfb / appointments / appointment-from-{serviceRequestId}
 
 O payload espelhado preserva:
 
+- `projectId`
 - `tenantId` operacional da agenda, vindo de `projectConnections.targetTenantId`
 - `tenantSlug`
+- `requestId`
 - `serviceId`
 - `serviceNameSnapshot`
 - `service.key`
 - `service.label`
-- `requestId`
 - `contactId`
 - `customerName`
 - `customerPhone`
 - `date` em ISO `YYYY-MM-DD`
 - `time` em `HH:mm`
-- `status = "confirmed"`
+- `status = "pending"`
 - `integrationEventId`
 - `mirroredFrom.firebaseProjectId = "bot-whatsapp-ai-d10ef"`
+- `firebaseProjectId = "bot-whatsapp-ai-d10ef"`
+
+Regra de negócio: o bot/Core volta a materializar `appointments` com `status = "pending"` para respeitar o contrato operacional já utilizado pelo admin, sem recolapsar os domínios em um banco único.
 
 O caminho HTTP antigo continua compatível para `projectConnections` com provider `http`.
 
@@ -199,9 +206,9 @@ Logs esperados no console:
 - `[bot][session] conversationSource=bot-whatsapp-ai-d10ef tenant=clinica-devtec ...`
 - `[core][serviceRequest:create] conversationSource=bot-whatsapp-ai-d10ef ... service=consulta_avaliacao ...`
 - `[core][confirm] conversationSource=bot-whatsapp-ai-d10ef servicesSource=agendamento-ai-9fbfb appointmentsTarget=agendamento-ai-9fbfb ... targetProject=agendamento-ai-9fbfb`
-- `[core][mirror] start serviceRequestId=... sessionId=... tenantSlug=... targetTenantId=...`
-- `[core][mirror] payloadBuilt serviceRequestId=... appointmentId=... tenantId=demo-tenant ... status=confirmed`
-- `[core][mirror] writeSuccess serviceRequestId=... appointmentId=...`
+- `[core][mirror] appointmentStart serviceRequestId=... sessionId=... tenantSlug=... targetTenantId=...`
+- `[core][mirror] appointmentPayloadBuilt serviceRequestId=... appointmentId=... tenantId=demo-tenant ... status=pending`
+- `[core][mirror] appointmentWriteSuccess serviceRequestId=... appointmentId=...`
 - `[core][agenda-sync] appointmentMirrored appointmentsTarget=agendamento-ai-9fbfb conversationSource=bot-whatsapp-ai-d10ef tenant=clinica-devtec service=consulta_avaliacao`
 - `[agenda][appointments] appointmentsTarget=agendamento-ai-9fbfb tenant=clinica-devtec ...`
 
@@ -214,5 +221,6 @@ Logs esperados no console:
 5. Confirmar a `serviceRequest` piloto `clinica-devtec-service-request-whatsapp-dev`.
 6. Verificar em `agendamento-ai-9fbfb/appointments` o documento `appointment-from-clinica-devtec-service-request-whatsapp-dev`.
 7. Abrir a página de appointments e validar o filtro por `tenantSlug = "clinica-devtec"` e a exibição de `service.label`.
+8. Confirmar que nenhum documento novo é criado diretamente em `agendamento-ai-9fbfb/appointmentRequests` durante essa etapa do bot/Core.
 
 Observação: o runtime WhatsApp que processa literalmente `/dev clinica-devtec` não está neste repo. Este repo agora fornece os helpers e o contrato de dados para esse bot ler `services` no `agendaDb`, persistir `sessions`/`serviceRequests` no `botDb` e acionar o mirror de `appointments` para `agendaDb`.

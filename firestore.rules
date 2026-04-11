@@ -27,6 +27,24 @@ service cloud.firestore {
         hasValidAppointmentService(data.service);
     }
 
+    function hasValidAppointmentRequestPayload(data) {
+      return isNonEmptyString(data.projectId) &&
+        isNonEmptyString(data.tenantId) &&
+        isNonEmptyString(data.tenantSlug) &&
+        isNonEmptyString(data.serviceRequestId) &&
+        isNonEmptyString(data.contactId) &&
+        isNonEmptyString(data.requestedDate) &&
+        isNonEmptyString(data.requestedTime) &&
+        isNonEmptyString(data.serviceId) &&
+        isNonEmptyString(data.serviceNameSnapshot) &&
+        isNonEmptyString(data.customerName) &&
+        isNonEmptyString(data.phone) &&
+        isNonEmptyString(data.channel) &&
+        isNonEmptyString(data.source) &&
+        isNonEmptyString(data.status) &&
+        hasValidAppointmentService(data.service);
+    }
+
     // Etapa atual do Core:
     // ainda estamos sem autenticação e autorização por tenant, então as regras
     // seguem abertas para desenvolvimento. Mesmo assim, reduzimos a superfície de
@@ -89,9 +107,11 @@ service cloud.firestore {
       allow create, update: if hasValidAppointmentPayload(request.resource.data);
     }
 
-    // Coleção legada mantida durante a migração gradual.
+    // `appointmentRequests` recebe o handoff do WhatsApp antes da validação do
+    // admin operacional da agenda.
     match /appointmentRequests/{requestId} {
       allow read: if true;
+      allow create, update: if hasValidAppointmentRequestPayload(request.resource.data);
     }
   }
 }

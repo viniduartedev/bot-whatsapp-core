@@ -403,6 +403,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
         status: 'integrado',
         integratedAt: serverTimestamp(),
         lastIntegrationError: '',
+        externalAppointmentRequestId: '',
         externalAppointmentId: appointmentId
       });
 
@@ -424,7 +425,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
           message,
           payloadSummary: outboundPayload,
           responseSummary: {
-            error: 'agenda_mirror_failed',
+            error: 'appointment_mirror_failed',
             targetProjectId: APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID
           }
         })
@@ -434,7 +435,7 @@ export async function confirmServiceRequest(requestId: string): Promise<void> {
         lastError: message,
         completedAt: serverTimestamp(),
         responseSummary: {
-          error: 'agenda_mirror_failed',
+          error: 'appointment_mirror_failed',
           targetProjectId: APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID
         }
       });

@@ -12,7 +12,7 @@ interface UseRequestsResult {
 export function useRequests(): UseRequestsResult {
   const { data, loading, error, refetch } = useCollectionQuery<AppointmentRequest>(
     getAppointmentRequests,
-    'Erro ao carregar solicitações legadas.'
+    'Erro ao carregar solicitações de agendamento.'
   );
 
   const requests = data;

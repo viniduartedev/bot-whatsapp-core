@@ -11,6 +11,9 @@ export function RequestList({ requests }: RequestListProps) {
         <li key={request.id} className="request-card">
           <h3>{request.customerName || 'Cliente não identificado'}</h3>
           <p>
+            <strong>Service Request:</strong> {request.serviceRequestId || '-'}
+          </p>
+          <p>
             <strong>Telefone:</strong> {request.phone || '-'}
           </p>
           <p>
@@ -21,6 +24,13 @@ export function RequestList({ requests }: RequestListProps) {
           </p>
           <p>
             <strong>Status:</strong> {request.status || '-'}
+          </p>
+          <p>
+            <strong>Serviço:</strong>{' '}
+            {request.service ? `${request.service.label} (${request.service.key})` : '-'}
+          </p>
+          <p>
+            <strong>Tenant:</strong> {request.tenantSlug || '-'}
           </p>
           <p>
             <strong>Canal:</strong> {request.channel || '-'}

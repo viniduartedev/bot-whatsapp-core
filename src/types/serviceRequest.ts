@@ -19,6 +19,7 @@ export interface ServiceRequest {
   integratedAt?: unknown;
   lastIntegrationEventId?: string;
   lastIntegrationError?: string;
+  externalAppointmentRequestId?: string;
   externalAppointmentId?: string;
   createdAt: unknown;
 }

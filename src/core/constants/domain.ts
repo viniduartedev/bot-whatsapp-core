@@ -83,3 +83,11 @@ export const APPOINTMENT_STATUSES = [
   'faltou'
 ] as const;
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+
+export const APPOINTMENT_REQUEST_STATUSES = [
+  'pending',
+  'approved',
+  'rejected',
+  'cancelled'
+] as const;
+export type AppointmentRequestStatus = (typeof APPOINTMENT_REQUEST_STATUSES)[number];

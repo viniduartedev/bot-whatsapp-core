@@ -4,18 +4,16 @@ import { useRequests } from '../hooks/useRequests';
 export function Requests() {
   const { requests, loading, error, refetch } = useRequests();
 
-  // `appointmentRequests` segue disponível apenas para manter a migração segura.
-  // A nova porta de entrada do core passa a ser `serviceRequests`.
-
   return (
     <section className="page-section">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Legado temporário</p>
-          <h1>Solicitações antigas</h1>
+          <p className="eyebrow">Fila operacional</p>
+          <h1>Appointment Requests</h1>
           <p>
-            Esta tela preserva a leitura da coleção <code>appointmentRequests</code> enquanto
-            o core novo é estruturado em paralelo.
+            Esta tela acompanha a coleção <code>appointmentRequests</code> em{' '}
+            <code>agendamento-ai</code>, onde o Core registra solicitações pendentes de
+            validação do admin.
           </p>
         </div>
         <button type="button" onClick={() => void refetch()}>

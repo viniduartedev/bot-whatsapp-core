@@ -1,7 +1,7 @@
 /**
- * O core novo usa coleções próprias por entidade. A coleção `appointmentRequests`
- * permanece como legado temporário até que a migração completa para
- * `serviceRequests` seja concluída com segurança.
+ * O core novo usa coleções próprias por entidade.
+ * `serviceRequests` permanece na origem conversacional do bot e
+ * `appointmentRequests` representa o handoff pendente para a agenda.
  */
 export const FIRESTORE_COLLECTIONS = {
   tenants: 'tenants',
@@ -17,5 +17,6 @@ export const FIRESTORE_COLLECTIONS = {
   integrationEvents: 'integrationEvents',
   integrationLogs: 'integrationLogs',
   appointments: 'appointments',
+  appointmentRequests: 'appointmentRequests',
   legacyAppointmentRequests: 'appointmentRequests'
 } as const;

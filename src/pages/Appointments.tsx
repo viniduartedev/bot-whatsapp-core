@@ -123,12 +123,12 @@ export function AppointmentsPage() {
       {!loading && !error && activeProject && (
         <SectionCard
           title="Appointments em agendamento-ai"
-          description="Leitura operacional da base de agenda. appointmentsTarget = agendamento-ai-9fbfb e o filtro usa o tenant do projeto ativo do bot/core."
+          description="Leitura operacional da agenda confirmada. Esses appointments devem surgir depois da validação/admin no agendamento-ai, não diretamente do bot/Core."
         >
           {appointments.length === 0 ? (
             <EmptyState
               title="Nenhum mirror encontrado"
-              description="Os appointments aparecem aqui depois que o Core integra uma solicitação para o domínio operacional da agenda."
+              description="Os appointments aparecem aqui somente depois que uma appointmentRequest é validada e materializada pelo fluxo operacional da agenda."
             />
           ) : (
             <DataTable

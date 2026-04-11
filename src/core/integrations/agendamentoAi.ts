@@ -113,6 +113,7 @@ function buildAppointmentWritePayload(input: MirrorAppointmentToAgendamentoAiInp
       tenantSlug: serviceRequest.tenantSlug,
       requestId: serviceRequest.id,
       contactId: serviceRequest.contactId,
+      firebaseProjectId: CONVERSATION_FIREBASE_PROJECT_ID,
       date,
       time,
       serviceId: serviceKey,
@@ -124,7 +125,7 @@ function buildAppointmentWritePayload(input: MirrorAppointmentToAgendamentoAiInp
       customerName,
       customerPhone,
       notes: '',
-      status: 'confirmed',
+      status: 'pending',
       sourceOfTruth: 'agendamento-ai',
       integrationEventId,
       externalReference: appointmentId,
@@ -152,21 +153,21 @@ export async function mirrorAppointmentToAgendamentoAi(
   assertMirrorableServiceRequest(serviceRequest, connection);
 
   console.info(
-    `[core][mirror] start serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} tenantSlug=${serviceRequest.tenantSlug} targetTenantId=${connection.targetTenantId ?? '-'} service.key=${serviceRequest.service!.key} service.label=${serviceRequest.service!.label} status=${serviceRequest.status} appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID}`
+    `[core][mirror] appointmentStart serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} tenantSlug=${serviceRequest.tenantSlug} targetTenantId=${connection.targetTenantId ?? '-'} service.key=${serviceRequest.service!.key} service.label=${serviceRequest.service!.label} status=${serviceRequest.status} appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID}`
   );
 
   const { appointmentId, payload } = buildAppointmentWritePayload(input);
   const appointmentRef = doc(agendaDb, FIRESTORE_COLLECTIONS.appointments, appointmentId);
 
   console.info(
-    `[core][mirror] payloadBuilt serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} appointmentId=${appointmentId} tenantSlug=${payload.tenantSlug} tenantId=${payload.tenantId} service.key=${payload.service.key} service.label=${payload.service.label} serviceId=${payload.serviceId} date=${payload.date} time=${payload.time} status=${payload.status} customerPhone=${payload.customerPhone}`
+    `[core][mirror] appointmentPayloadBuilt serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} appointmentId=${appointmentId} tenantSlug=${payload.tenantSlug} tenantId=${payload.tenantId} service.key=${payload.service.key} service.label=${payload.service.label} serviceId=${payload.serviceId} date=${payload.date} time=${payload.time} status=${payload.status} customerPhone=${payload.customerPhone}`
   );
 
   try {
     await setDoc(appointmentRef, payload, { merge: true });
 
     console.info(
-      `[core][mirror] writeSuccess serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} appointmentId=${appointmentId} appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID} tenantSlug=${serviceRequest.tenantSlug} tenantId=${payload.tenantId} service.key=${payload.service.key} service.label=${payload.service.label}`
+      `[core][mirror] appointmentWriteSuccess serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} appointmentId=${appointmentId} appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID} tenantSlug=${serviceRequest.tenantSlug} tenantId=${payload.tenantId} service.key=${payload.service.key} service.label=${payload.service.label}`
     );
     console.info(
       `[core][agenda-sync] appointmentMirrored appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID} conversationSource=${CONVERSATION_FIREBASE_PROJECT_ID} tenant=${serviceRequest.tenantSlug} service=${serviceRequest.service!.key} appointmentId=${appointmentId}`
@@ -175,7 +176,7 @@ export async function mirrorAppointmentToAgendamentoAi(
     const message = err instanceof Error ? err.message : String(err);
 
     console.error(
-      `[core][mirror] writeError serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} appointmentId=${appointmentId} appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID} tenantSlug=${serviceRequest.tenantSlug} tenantId=${payload.tenantId} service.key=${payload.service.key} service.label=${payload.service.label} error=${message}`
+      `[core][mirror] appointmentWriteError serviceRequestId=${serviceRequest.id} sessionId=${serviceRequest.sessionId ?? '-'} appointmentId=${appointmentId} appointmentsTarget=${APPOINTMENTS_TARGET_FIREBASE_PROJECT_ID} tenantSlug=${serviceRequest.tenantSlug} tenantId=${payload.tenantId} service.key=${payload.service.key} service.label=${payload.service.label} error=${message}`
     );
 
     throw err;

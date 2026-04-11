@@ -78,6 +78,7 @@ function mapServiceRequestDocument(id: string, data: DocumentData): ServiceReque
   const integratedAt = readOptionalUnknown(data, 'integratedAt');
   const lastIntegrationEventId = readString(data, 'lastIntegrationEventId');
   const lastIntegrationError = readString(data, 'lastIntegrationError');
+  const externalAppointmentRequestId = readString(data, 'externalAppointmentRequestId');
   const externalAppointmentId = readString(data, 'externalAppointmentId');
 
   return {
@@ -98,6 +99,7 @@ function mapServiceRequestDocument(id: string, data: DocumentData): ServiceReque
     ...(integratedAt !== undefined ? { integratedAt } : {}),
     ...(lastIntegrationEventId ? { lastIntegrationEventId } : {}),
     ...(lastIntegrationError ? { lastIntegrationError } : {}),
+    ...(externalAppointmentRequestId ? { externalAppointmentRequestId } : {}),
     ...(externalAppointmentId ? { externalAppointmentId } : {}),
     createdAt: readUnknown(data, 'createdAt')
   };
