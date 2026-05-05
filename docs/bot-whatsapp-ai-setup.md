@@ -114,9 +114,13 @@ Variáveis recomendadas:
 - `VITE_AGENDA_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_AGENDA_FIREBASE_APP_ID`
 - `VITE_AGENDA_FIREBASE_MEASUREMENT_ID`
+- `CORE_INTERNAL_TOKEN`
 - `BOT_FIREBASE_PROJECT_ID`
 - `BOT_FIREBASE_SERVICE_ACCOUNT_PATH`
+- `BOT_FIREBASE_SERVICE_ACCOUNT_KEY`
 - `BOT_CORE_TENANT_SLUG`
+- `AGENDA_FIREBASE_PROJECT_ID`
+- `AGENDA_FIREBASE_SERVICE_ACCOUNT_KEY`
 - `AGENDAMENTO_FIREBASE_PROJECT_ID`
 - `AGENDAMENTO_CORE_API_BASE_URL`
 - `AGENDAMENTO_CORE_API_TOKEN`
@@ -195,6 +199,80 @@ Regra de negócio: o bot/Core volta a materializar `appointments` com `status = 
 
 O caminho HTTP antigo continua compatível para `projectConnections` com provider `http`.
 
+### Confirmação automática via API interna
+
+O botão **Confirmar** da tela `Service Requests` chama `confirmServiceRequest(request.id)` em `src/core/use-cases/confirmServiceRequest.ts`. A API interna expõe o mesmo fluxo operacional para o bot acionar a confirmação sem intervenção manual:
+
+```text
+POST /api/service-requests/confirm
+```
+
+Payload:
+
+```json
+{
+  "serviceRequestId": "ID_DA_REQUEST"
+}
+```
+
+Autenticação:
+
+```text
+Authorization: Bearer <CORE_INTERNAL_TOKEN>
+```
+
+Exemplo de teste:
+
+```bash
+curl -X POST "$CORE_API_URL/api/service-requests/confirm" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $CORE_INTERNAL_TOKEN" \
+  -d '{"serviceRequestId":"ID_DA_REQUEST"}'
+```
+
+Resposta integrada:
+
+```json
+{
+  "ok": true,
+  "serviceRequestId": "ID_DA_REQUEST",
+  "status": "integrado",
+  "externalAppointmentId": "appointment-from-ID_DA_REQUEST"
+}
+```
+
+Se a solicitação já estiver com `status = "integrado"`, a API não cria outro appointment e retorna:
+
+```json
+{
+  "ok": true,
+  "alreadyIntegrated": true,
+  "serviceRequestId": "ID_DA_REQUEST",
+  "externalAppointmentId": "appointment-from-ID_DA_REQUEST"
+}
+```
+
+Envs server-side esperadas no Core/Vercel:
+
+```env
+CORE_INTERNAL_TOKEN=...
+BOT_FIREBASE_PROJECT_ID=bot-whatsapp-ai-d10ef
+BOT_FIREBASE_SERVICE_ACCOUNT_KEY=...
+AGENDA_FIREBASE_PROJECT_ID=agendamento-ai-9fbfb
+AGENDA_FIREBASE_SERVICE_ACCOUNT_KEY=...
+```
+
+`BOT_FIREBASE_SERVICE_ACCOUNT_KEY` e `AGENDA_FIREBASE_SERVICE_ACCOUNT_KEY` aceitam o JSON da service account ou o JSON codificado em base64. Para execução local, também é possível usar `BOT_FIREBASE_SERVICE_ACCOUNT_PATH` e `AGENDA_FIREBASE_SERVICE_ACCOUNT_PATH`.
+
+O fluxo automático mantém o destino validado:
+
+```text
+bot-whatsapp-ai-d10ef / serviceRequests / {serviceRequestId}
+agendamento-ai-9fbfb / appointments / appointment-from-{serviceRequestId}
+```
+
+Não há escrita em `agendamento-ai-9fbfb/appointmentRequests` neste endpoint.
+
 ## Logs de homologação
 
 Logs esperados no console:
@@ -222,5 +300,7 @@ Logs esperados no console:
 6. Verificar em `agendamento-ai-9fbfb/appointments` o documento `appointment-from-clinica-devtec-service-request-whatsapp-dev`.
 7. Abrir a página de appointments e validar o filtro por `tenantSlug = "clinica-devtec"` e a exibição de `service.label`.
 8. Confirmar que nenhum documento novo é criado diretamente em `agendamento-ai-9fbfb/appointmentRequests` durante essa etapa do bot/Core.
+9. Chamar `POST /api/service-requests/confirm` com uma `serviceRequest` real em `status = "novo"` e validar que a resposta retorna `ok = true`.
+10. Repetir a chamada para o mesmo ID e validar `alreadyIntegrated = true`, sem duplicar o documento em `agendamento-ai-9fbfb/appointments`.
 
 Observação: o runtime WhatsApp que processa literalmente `/dev clinica-devtec` não está neste repo. Este repo agora fornece os helpers e o contrato de dados para esse bot ler `services` no `agendaDb`, persistir `sessions`/`serviceRequests` no `botDb` e acionar o mirror de `appointments` para `agendaDb`.
